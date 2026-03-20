@@ -1,0 +1,168 @@
+2026-03-13 19:34:36 - INFO - [main.py:22] - HydrationKineticsPro GUI 启动成功。
+2026-03-13 19:47:26 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-13 19:51:59 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-13 19:52:04 - INFO - [data_parser.py:30] - 数据加载成功: test_data.csv, 共 500 行有效记录。
+2026-03-13 19:52:04 - INFO - [kinetics_solver.py:46] - 成功识别加速期起点 t0: 1.597 h
+2026-03-13 19:56:03 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-13 19:56:09 - INFO - [data_parser.py:29] - 数据加载成功: test_data.csv, 共 500 行有效记录。
+2026-03-13 19:56:09 - INFO - [kinetics_solver.py:46] - 成功识别加速期起点 t0: 1.597 h
+2026-03-13 19:56:14 - INFO - [data_parser.py:29] - 数据加载成功: test_data.csv, 共 500 行有效记录。
+2026-03-13 19:56:14 - INFO - [kinetics_solver.py:46] - 成功识别加速期起点 t0: 1.597 h
+2026-03-13 20:17:51 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-13 20:17:59 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv, 自动修正了截断列名。
+2026-03-13 20:17:59 - INFO - [kinetics_solver.py:46] - 成功识别加速期起点 t0: 2.455 h
+2026-03-14 13:29:09 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-14 13:29:28 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境映射就绪。
+2026-03-14 13:29:34 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv, 自动修正了截断列名。
+2026-03-14 13:29:34 - INFO - [kinetics_solver.py:46] - 成功识别加速期起点 t0: 2.455 h
+2026-03-14 13:36:57 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 13:37:46 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 13:37:46 - WARNING - [kinetics_solver.py:71] - Knudsen 线性外推失效，启用最大实测值物理逼近兜底。
+2026-03-14 13:37:46 - INFO - [kinetics_solver.py:87] - Qmax 定标完成: Qmax = 118.87 J/g, t50 = 18.09 h
+2026-03-14 13:47:03 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 13:47:12 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 13:47:12 - INFO - [kinetics_solver.py:101] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 13:51:55 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 13:52:01 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 13:52:01 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 13:52:01 - WARNING - [kinetics_solver.py:185] - 第 1 次迭代切割越界，安全回退至上一轮最佳状态。
+2026-03-14 14:12:06 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:13:10 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:13:10 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:13:10 - WARNING - [kinetics_solver.py:185] - 第 1 次迭代切割越界，安全回退至上一轮最佳状态。
+2026-03-14 14:16:35 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:16:35 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:16:35 - WARNING - [kinetics_solver.py:185] - 第 1 次迭代切割越界，安全回退至上一轮最佳状态。
+2026-03-14 14:16:45 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:16:55 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:16:55 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:16:55 - WARNING - [kinetics_solver.py:185] - 第 1 次迭代切割越界，安全回退至上一轮最佳状态。
+2026-03-14 14:22:02 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:22:12 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:22:12 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:22:12 - INFO - [kinetics_solver.py:204] - 模型于第 12 次迭代实现物理闭环收敛。
+2026-03-14 14:26:35 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:26:42 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:26:42 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:26:42 - INFO - [kinetics_solver.py:204] - 模型于第 12 次迭代实现物理闭环收敛。
+2026-03-14 14:31:16 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:31:21 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:31:21 - INFO - [kinetics_solver.py:106] - Qmax 定标完成: Qmax = 267.96 J/g, t50 = 72.93 h
+2026-03-14 14:31:21 - INFO - [kinetics_solver.py:204] - 模型于第 12 次迭代实现物理闭环收敛。
+2026-03-14 14:37:45 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:37:50 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:45:28 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:45:33 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:50:50 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:50:58 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 14:55:01 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 14:55:08 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:03:53 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:04:18 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:10:28 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:10:33 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:16:09 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:16:14 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:24:25 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:24:33 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:26:35 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:26:39 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:31:41 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:31:46 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 15:35:54 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 15:36:01 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 19:52:20 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 19:55:42 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 19:59:34 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 19:59:45 - INFO - [data_parser.py:46] - 数据加载成功: test_data.csv
+2026-03-14 20:05:18 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 20:05:24 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 20:10:29 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 20:10:35 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 20:15:06 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 20:15:12 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 20:41:27 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 20:41:33 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 20:47:13 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 20:47:18 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 21:02:18 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:02:23 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 21:05:02 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:05:07 - INFO - [data_parser.py:46] - 数据加载成功: test_data -2.csv
+2026-03-14 21:10:28 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:10:50 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:13:02 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:15:56 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-14 21:28:35 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 12:31:20 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 12:44:01 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 14:41:40 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 14:50:15 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 14:57:53 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 15:06:17 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 15:13:04 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 15:19:03 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 15:30:04 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-16 16:02:11 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:19:07 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:26:59 - INFO - [main.py:20] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:27:10 - ERROR - [async_workers.py:63] - Worker 线程执行崩溃: 'utf-8' codec can't decode bytes in position 15-16: invalid continuation byte
+2026-03-17 20:29:55 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:30:07 - ERROR - [async_workers.py:63] - Worker 线程执行崩溃: 'utf-8' codec can't decode bytes in position 15-16: invalid continuation byte
+2026-03-17 20:32:26 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:32:40 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-17 20:33:10 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-17 20:33:12 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-17 20:33:49 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-17 20:34:19 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-17 20:38:37 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:38:37 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-17 20:38:44 - INFO - [data_parser.py:59] - 数据加载成功: test_data -2.csv (解析引擎: .csv)
+2026-03-17 20:39:03 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-18 14:49:32 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-18 14:50:58 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-18 14:51:12 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-18 14:51:17 - INFO - [data_parser.py:59] - 数据加载成功: test_data -2.csv (解析引擎: .csv)
+2026-03-18 14:54:44 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-18 14:54:50 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-18 14:55:16 - INFO - [data_parser.py:59] - 数据加载成功: test_data -2.csv (解析引擎: .csv)
+2026-03-18 18:02:13 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-18 18:02:19 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-18 21:15:14 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-18 21:15:28 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-18 21:16:56 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-18 21:21:57 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-18 21:22:54 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-18 21:23:10 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 11:40:49 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-19 11:41:04 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 11:49:05 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-19 11:49:17 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 11:51:18 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 11:53:03 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 17:29:15 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-19 17:29:27 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 17:32:06 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 17:32:46 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-19 17:33:10 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 11:31:25 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 11:31:33 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-20 11:33:50 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 11:39:17 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 11:39:45 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 11:40:08 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 11:40:17 - INFO - [data_parser.py:59] - 数据加载成功: cement_ggbs_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 11:40:39 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 19:54:13 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 19:54:28 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 19:58:29 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 19:58:34 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-20 19:59:00 - INFO - [data_parser.py:59] - 数据加载成功: test_data -2.csv (解析引擎: .csv)
+2026-03-20 19:59:06 - INFO - [data_parser.py:59] - 数据加载成功: test_data -2.csv (解析引擎: .csv)
+2026-03-20 20:10:16 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 20:10:45 - INFO - [data_parser.py:59] - 数据加载成功: cement_fa_sw.xlsx (解析引擎: .xlsx)
+2026-03-20 20:17:53 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 20:17:58 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-20 20:22:10 - INFO - [main.py:15] - HydrationKineticsPro GUI 环境初始化完毕。
+2026-03-20 20:22:18 - INFO - [data_parser.py:59] - 数据加载成功: test_data.csv (解析引擎: .csv)
+2026-03-20 20:24:49 - INFO - [data_parser.py:59] - 数据加载成功: cement_cp_sw.xlsx (解析引擎: .xlsx)
