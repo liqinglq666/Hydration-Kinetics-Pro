@@ -2,7 +2,7 @@
   <h1 align="center">🌌 Hydration Kinetics Pro (HK-Pro)</h1>
   <p align="center">
     <strong>A Physics-Informed Computational Framework for Complex Cementitious Hydration Kinetics</strong>
-    <br><em>(Or: How to stop worrying and learn to love Reviewer #2)</em>
+    <br>
     <br />
     <br />
     <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9+-blue.svg?logo=python&logoColor=white" alt="Python"></a>
