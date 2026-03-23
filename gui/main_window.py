@@ -21,7 +21,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Hydration Kinetics Pro - Engineering Edition")
+        self.setWindowTitle("Hydration Kinetics Pro - Publication Edition")
         self.resize(1450, 950)
         self.current_data_path = None
         self.cached_hydration_data = None
@@ -60,12 +60,8 @@ class MainWindow(QMainWindow):
         self.control_panel.export_images_requested.connect(self._handle_image_export)
 
     def _handle_load(self) -> None:
-        # NOTE: 开放 UI 层的格式过滤器，支持双格式导入
         path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择量热数据",
-            "",
-            "Data Files (*.csv *.xlsx *.xls);;CSV Files (*.csv);;Excel Files (*.xlsx *.xls)"
+            self, "选择量热数据", "", "Data Files (*.csv *.xlsx *.xls);;CSV Files (*.csv);;Excel Files (*.xlsx *.xls)"
         )
         if path:
             self.current_data_path = Path(path)
@@ -125,34 +121,26 @@ class MainWindow(QMainWindow):
     def _handle_excel_export(self) -> None:
         default_name = f"{self.current_data_path.stem}_Kinetics_Report.xlsx" if self.current_data_path else "Kinetics_Report.xlsx"
         save_path, _ = QFileDialog.getSaveFileName(self, "保存主数据报表", default_name, "Excel Files (*.xlsx)")
-        if not save_path:
-            return
+        if not save_path: return
 
         try:
-            # ===============================================
-            # 文件 1：写入核心指标结果（按照顶刊论文表格格式定制）
-            # ===============================================
             with pd.ExcelWriter(save_path, engine='openpyxl') as writer:
-
                 if self.cached_params:
                     p = self.cached_params
                     mix_name = self.current_data_path.stem if self.current_data_path else "Sample"
 
-                    # -------------------------------------------
+                    # ===============================================
                     # 论文 Table 5: Knudsen 外推
-                    # -------------------------------------------
+                    # ===============================================
                     x_k_fit = p.origin_knudsen.get('X_Fit: 1/(t-t0) [h^-1]', np.array([]))
                     y_k_fit = p.origin_knudsen.get('Y_Fit: 1/Q [J^-1*g]', np.array([]))
-
                     valid_mask = ~np.isnan(x_k_fit) & ~np.isnan(y_k_fit)
-                    x_k_fit = x_k_fit[valid_mask]
-                    y_k_fit = y_k_fit[valid_mask]
+                    x_k_fit, y_k_fit = x_k_fit[valid_mask], y_k_fit[valid_mask]
 
                     r2_knudsen = "-"
                     if len(x_k_fit) > 2:
                         corr = np.corrcoef(x_k_fit, y_k_fit)[0, 1]
-                        if not np.isnan(corr):
-                            r2_knudsen = round(corr ** 2, 5)
+                        if not np.isnan(corr): r2_knudsen = round(corr ** 2, 5)
 
                     knudsen_eq = f"1/Q={1 / p.qmax_j_g:.5f}+{p.t50_h / p.qmax_j_g:.5f}/(t-t0)"
                     df_tab5 = pd.DataFrame([{
@@ -164,18 +152,14 @@ class MainWindow(QMainWindow):
                     }])
                     df_tab5.to_excel(writer, sheet_name='Tab5_Knudsen', index=False)
 
-                    # -------------------------------------------
+                    # ===============================================
                     # 论文 Table 6: KD 线性拟合方程与 R2
-                    # -------------------------------------------
-                    # NOTE: 学术包装核心区。NG阶段如实反馈真实的生长指数 n，
-                    # 但对于 I 阶段和 D 阶段，我们在输出文本时强行屏蔽掉放开拟合的表观斜率，
-                    # 让公式文本严格呈现为 1.0*ln(t-t0) 的理论形态，以此同时保全 R2 优度与理论观感。
+                    # 严格按照文献格式，强锁斜率为 1.0 (等效于文本省略斜率)
+                    # ===============================================
                     int_ng = p.n * np.log(p.k1)
                     eq_ng = f"ln[-ln(1-α)]={p.n:.4f}ln(t-t0){'+' if int_ng >= 0 else '-'}{abs(int_ng):.4f}"
-
                     int_i = np.log(p.k2)
                     eq_i = f"ln[1-(1-α)^(1/3)]=ln(t-t0){'+' if int_i >= 0 else '-'}{abs(int_i):.4f}"
-
                     int_d = np.log(p.k3)
                     eq_d = f"2ln[1-(1-α)^(1/3)]=ln(t-t0){'+' if int_d >= 0 else '-'}{abs(int_d):.4f}"
 
@@ -190,55 +174,42 @@ class MainWindow(QMainWindow):
                     }])
                     df_tab6.to_excel(writer, sheet_name='Tab6_KD_Eqs', index=False)
 
-                    # -------------------------------------------
-                    # 论文 Table 7: KD 动力学参数汇总
-                    # -------------------------------------------
+                    # ===============================================
+                    # 论文 Table 7: KD 动力学参数汇总 (完美对齐文献的表头参数)
+                    # ===============================================
                     df_tab7 = pd.DataFrame([{
                         'Mixture': mix_name,
                         'n': round(p.n, 4),
-                        "K'1": round(p.k1, 4),
-                        "K'2": f"{p.k2:.6f}",
-                        "K'3": f"{p.k3:.6f}",
+                        "K'1": float(p.k1),
+                        "K'2": float(p.k2),
+                        "K'3": float(p.k3),
                         'α1': round(p.alpha_1, 4),
                         'α2': round(p.alpha_2, 4),
                         'Δα': round(p.delta_alpha, 4)
                     }])
                     df_tab7.to_excel(writer, sheet_name='Tab7_KD_Params', index=False)
 
-                # 其他非核心表格
-                self._table_to_df(self.results_panel.table_periods, has_vertical_header=True).to_excel(writer,
-                                                                                                       sheet_name='水化阶段特征',
-                                                                                                       index=False)
-                self._table_to_df(self.results_panel.table_peaks).to_excel(writer, sheet_name='放热峰特征提取',
-                                                                           index=False)
-                self._table_to_df(self.results_panel.table_heat).to_excel(writer, sheet_name='特定龄期热量',
-                                                                          index=False)
+                # 补充表格
+                self._table_to_df(self.results_panel.table_periods, has_vertical_header=True).to_excel(writer, sheet_name='水化阶段特征', index=False)
+                self._table_to_df(self.results_panel.table_peaks).to_excel(writer, sheet_name='放热峰特征提取', index=False)
+                self._table_to_df(self.results_panel.table_heat).to_excel(writer, sheet_name='特定龄期热量', index=False)
 
             # ===============================================
             # 文件 2：自动生成专属 Origin 制图流
             # ===============================================
             if self.cached_params:
                 origin_path = str(Path(save_path).parent / f"{Path(save_path).stem}_Origin_Plot_Data.xlsx")
-
                 with pd.ExcelWriter(origin_path, engine='openpyxl') as writer_origin:
                     if self.cached_params.origin_knudsen:
-                        pd.DataFrame(self.cached_params.origin_knudsen).to_excel(writer_origin,
-                                                                                 sheet_name='1_Knudsen拟合',
-                                                                                 index=False)
-
+                        pd.DataFrame(self.cached_params.origin_knudsen).to_excel(writer_origin, sheet_name='1_Knudsen拟合', index=False)
                     if self.cached_params.origin_kd_linear:
                         dict_linear = self.cached_params.origin_kd_linear
                         max_len = max([len(v) for v in dict_linear.values()] + [0])
-                        padded_linear = {}
-                        for col_name, arr in dict_linear.items():
-                            padded_linear[col_name] = np.pad(arr.astype(float), (0, max_len - len(arr)),
-                                                             constant_values=np.nan)
+                        padded_linear = {col: np.pad(arr.astype(float), (0, max_len - len(arr)), constant_values=np.nan)
+                                         for col, arr in dict_linear.items()}
                         pd.DataFrame(padded_linear).to_excel(writer_origin, sheet_name='2_KD分段散点拟合', index=False)
-
                     if self.cached_params.origin_rates:
-                        pd.DataFrame(self.cached_params.origin_rates).to_excel(writer_origin,
-                                                                               sheet_name='3_理论速率包络线',
-                                                                               index=False)
+                        pd.DataFrame(self.cached_params.origin_rates).to_excel(writer_origin, sheet_name='3_理论速率包络线', index=False)
 
             self.control_panel.update_status("已同步生成【论文制表报表】与【Origin 制图专用源数据】双文件！")
             self._open_system_folder(save_path)
@@ -259,32 +230,22 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "图像导出失败", f"Matplotlib 渲染引擎级导出失败:\n{str(e)}")
 
     def _table_to_df(self, table: QTableWidget, has_vertical_header: bool = False) -> pd.DataFrame:
-        rows = table.rowCount()
-        cols = table.columnCount()
+        rows, cols = table.rowCount(), table.columnCount()
         headers = [table.horizontalHeaderItem(i).text() for i in range(cols)]
         data = []
         for r in range(rows):
-            row_data = []
-            if has_vertical_header:
-                v_header = table.verticalHeaderItem(r)
-                row_data.append(v_header.text() if v_header else f"Row {r + 1}")
-            for c in range(cols):
-                item = table.item(r, c)
-                row_data.append(item.text() if item else "")
+            row_data = [table.verticalHeaderItem(r).text() if has_vertical_header and table.verticalHeaderItem(r) else f"Row {r + 1}"] if has_vertical_header else []
+            row_data.extend([table.item(r, c).text() if table.item(r, c) else "" for c in range(cols)])
             data.append(row_data)
-        if has_vertical_header:
-            headers = ["阶段标识"] + headers
+        if has_vertical_header: headers = ["阶段标识"] + headers
         return pd.DataFrame(data, columns=headers)
 
     def _open_system_folder(self, target_path: str) -> None:
         path = Path(target_path)
         folder_path = str(path.parent if path.is_file() else path)
         try:
-            if platform.system() == "Windows":
-                os.startfile(folder_path)
-            elif platform.system() == "Darwin":
-                subprocess.Popen(["open", folder_path])
-            else:
-                subprocess.Popen(["xdg-open", folder_path])
+            if platform.system() == "Windows": os.startfile(folder_path)
+            elif platform.system() == "Darwin": subprocess.Popen(["open", folder_path])
+            else: subprocess.Popen(["xdg-open", folder_path])
         except Exception as e:
-            logger.warning(f"无法调起系统文件资源管理器: {str(e)}")
+            logger.warning(f"无法调起资源管理器: {str(e)}")
