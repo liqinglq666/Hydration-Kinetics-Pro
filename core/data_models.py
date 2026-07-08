@@ -24,6 +24,7 @@ class KineticsParameters:
     r2_ng: float = 0.0
     r2_i: float = 0.0
     r2_d: float = 0.0
+    r2_knudsen: float = 0.0
 
     t_alpha_1_h: float = 0.0
     t_alpha_2_h: float = 0.0
@@ -39,6 +40,15 @@ class KineticsParameters:
     peaks: List[Tuple[float, float]] = field(default_factory=list)
 
     # ==========================================
+    # 可追溯性与质量控制元数据
+    # ==========================================
+    input_mode: str = "unknown"
+    detected_unit_mode: Optional[str] = None
+    qmax_method: str = "unknown"
+    qmax_fallback_used: bool = False
+    warnings: List[str] = field(default_factory=list)
+
+    # ==========================================
     # Origin 绘图专用数据包裹 (分类存储)
     # ==========================================
     origin_knudsen: Dict[str, np.ndarray] = field(default_factory=dict)
@@ -52,3 +62,5 @@ class HydrationData:
     heat_flow_mw_g: np.ndarray
     cumulative_heat_j_g: np.ndarray
     alpha: Optional[np.ndarray] = None
+    input_mode: str = "unknown"
+    detected_unit_mode: Optional[str] = None
