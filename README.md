@@ -21,7 +21,7 @@
 
 1. **单位明确**：输入数据必须声明是总热流/总热量，还是已经按质量归一化的 mW/g 与 J/g。
 2. **失败显式**：当数据不足以支撑 K-D 分段拟合时，程序会报错，而不是悄悄返回默认参数。
-3. **结果可追溯**：导出 Knudsen 外推、K-D 分段拟合与理论速率包络线数据，便于复查和二次绘图。
+3. **结果可追溯**：导出 Knudsen 外推、K-D 分段拟合、理论速率包络线、QC 追溯表和 warning 记录，便于复查和二次绘图。
 
 ---
 
@@ -104,6 +104,7 @@ pytest
 
 - normalized 模式不会二次除以质量。
 - total 模式会按样品质量归一化。
+- 表头单位与 GUI 单位模式不一致时会显式报错。
 - `.xls` 会被明确拒绝。
 - 96 h 合成量热数据可跑通 parser + solver。
 - 极短数据会显式抛出 `KineticsCalculationError`。
@@ -112,13 +113,26 @@ pytest
 
 ## 🧬 Output Pipeline
 
-一键导出的 `Origin_Plot_Data.xlsx` 包含三个工作表：
+一键导出的主数据报表包含 QC 追溯表：
 
 | 工作表 | 内容 | 用途 |
 | :--- | :--- | :--- |
-| `1_Knudsen拟合` | `1/(t-t0)` 与 `1/Q` | 检查 Qmax 外推合理性 |
-| `2_KD分段散点拟合` | NG / I / D 分段线性化数据 | 复查 K-D 参数来源 |
+| `QC_Traceability` | 样品名、源文件、输入单位模式、识别单位模式、样品质量、Qmax 方法 | 追溯结果来源与单位处理 |
+| `QC_R2_Review` | Knudsen / NG / I / D 的 R² 与质量判读 | 快速判断拟合结果是否适合作为论文定量结果 |
+| `QC_Warnings` | solver warning 与 fallback 提醒 | 保留所有需要人工复核的风险点 |
+| `Tab5_Knudsen` | Qmax、t50、Knudsen 方程、R²、Qmax 方法 | 检查 Qmax 外推合理性 |
+| `Tab6_KD_Eqs` | NG / I / D 分段方程、R²、质量标签 | 复查 K-D 参数来源 |
+| `Tab7_KD_Params` | n、K1、K2、K3、α1、α2 | 论文主参数表 |
+
+另行导出的 `Origin_Plot_Data.xlsx` 包含三个工作表：
+
+| 工作表 | 内容 | 用途 |
+| :--- | :--- | :--- |
+| `1_Knudsen拟合` | `1/(t-t0)` 与 `1/Q` | 复现 Qmax 外推图 |
+| `2_KD分段散点拟合` | NG / I / D 分段线性化数据 | 复现 K-D 分段拟合图 |
 | `3_理论速率包络线` | 实验速率与理论速率函数 | 判断机制控制区间与 α1/α2 |
+
+图像导出会生成 1 张 dashboard 总图和 4 张独立 600 dpi cropped publication figures。
 
 ---
 
@@ -136,6 +150,8 @@ flowchart LR
     F --> H
     G --> I[Origin Plot Data]
     H --> J[Excel Report]
+    D --> K[QC Traceability]
+    K --> J
 ```
 
 ---
