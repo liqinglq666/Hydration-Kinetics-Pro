@@ -63,13 +63,17 @@ def test_parser_respects_total_mode(tmp_path: Path) -> None:
     assert data.sample_mass_g == mass
 
 
-def test_parser_rejects_unit_mode_mismatch(tmp_path: Path) -> None:
+def test_parser_warns_but_does_not_reject_unit_mode_mismatch(tmp_path: Path) -> None:
     df = _synthetic_calorimetry_frame()
     csv_path = tmp_path / "normalized.csv"
     df.to_csv(csv_path, index=False)
 
-    with pytest.raises(DataParserError, match="表头单位与 GUI 选择不一致"):
-        CalorimetryParser(sample_mass_g=5.0, input_mode="total").parse(csv_path)
+    data = CalorimetryParser(sample_mass_g=5.0, input_mode="total").parse(csv_path)
+
+    assert data.input_mode == "total"
+    assert data.detected_unit_mode == "normalized"
+    assert data.parser_warnings
+    assert "表头单位与 GUI 选择不一致" in data.parser_warnings[0]
 
 
 def test_xls_is_explicitly_rejected(tmp_path: Path) -> None:
