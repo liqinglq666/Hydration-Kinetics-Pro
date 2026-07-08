@@ -11,12 +11,26 @@ class KineticsWorker(QThread):
     finished = Signal(tuple)
     error = Signal(str)
 
-    def __init__(self, filepath, mass, expected_peaks, input_mode):
+    def __init__(
+        self,
+        filepath,
+        mass,
+        expected_peaks,
+        input_mode,
+        use_manual_t0=False,
+        manual_t0_h=0.0,
+        use_manual_qmax=False,
+        manual_qmax_total_j_g=0.0,
+        allow_qmax_fallback=True,
+    ):
         super().__init__()
         self.filepath = filepath
         self.mass = float(mass)
         self.expected_peaks = int(expected_peaks)
         self.input_mode = str(input_mode)
+        self.manual_t0_h = float(manual_t0_h) if use_manual_t0 else None
+        self.manual_qmax_total_j_g = float(manual_qmax_total_j_g) if use_manual_qmax else None
+        self.allow_qmax_fallback = bool(allow_qmax_fallback)
 
     def run(self):
         try:
@@ -28,7 +42,13 @@ class KineticsWorker(QThread):
 
             self.progress.emit("正在执行 K-D 动力学多峰联合解析...")
 
-            solver = KDSolver(data, self.expected_peaks)
+            solver = KDSolver(
+                data,
+                self.expected_peaks,
+                manual_t0_h=self.manual_t0_h,
+                manual_qmax_total_j_g=self.manual_qmax_total_j_g,
+                allow_qmax_fallback=self.allow_qmax_fallback,
+            )
             params = solver.execute_pipeline()
 
             self.finished.emit((params, data))
