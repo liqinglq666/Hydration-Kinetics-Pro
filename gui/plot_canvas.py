@@ -21,7 +21,8 @@ plt.rcParams["axes.unicode_minus"] = False
 class ScientificCanvas(QWidget):
     """科研绘图画布。
 
-    GUI 中默认一次只显示一个图表卡片；导出时仍可自动生成 dashboard 和四张独立图。
+    GUI 默认使用双列 dashboard：一排两个图，避免单张图在低高度区域被横向拉伸。
+    工具栏仍可缩放、平移；导出时仍生成 dashboard 和四张独立图。
     """
 
     MODE_TITLES = {
@@ -32,11 +33,12 @@ class ScientificCanvas(QWidget):
         "dashboard": "Hydration Kinetics Dashboard",
     }
 
-    def __init__(self, parent=None, plot_mode: str = "raw"):
+    def __init__(self, parent=None, plot_mode: str = "dashboard"):
         super().__init__(parent)
-        self.plot_mode = plot_mode
-        self.fig = Figure(figsize=(10.8, 5.6), dpi=120)
+        self.plot_mode = "dashboard" if plot_mode == "raw" else plot_mode
+        self.fig = Figure(figsize=(11.2, 7.2), dpi=115)
         self.canvas = FigureCanvas(self.fig)
+        self.canvas.setMinimumHeight(420)
         self.toolbar = NavigationToolbar(self.canvas, self)
 
         self.ax_raw_twin = None
@@ -76,13 +78,16 @@ class ScientificCanvas(QWidget):
         self.ax_raw_twin = None
         self.fig.clear()
 
-    def _style_axis(self, ax) -> None:
+    def _style_axis(self, ax, compact: bool = False) -> None:
         ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.yaxis.set_minor_locator(AutoMinorLocator())
-        ax.tick_params(which="major", width=1.4, length=5, labelsize=11)
-        ax.tick_params(which="minor", width=0.9, length=3)
+        major_len = 4 if compact else 5
+        minor_len = 2.5 if compact else 3
+        label_size = 9 if compact else 11
+        ax.tick_params(which="major", width=1.2, length=major_len, labelsize=label_size)
+        ax.tick_params(which="minor", width=0.8, length=minor_len)
         for spine in ax.spines.values():
-            spine.set_linewidth(1.4)
+            spine.set_linewidth(1.2 if compact else 1.4)
 
     def _render_empty(self, message: str) -> None:
         self._clear_figure()
@@ -103,20 +108,20 @@ class ScientificCanvas(QWidget):
 
         self._clear_figure()
         ax = self.fig.add_subplot(111)
-        self._style_axis(ax)
+        self._style_axis(ax, compact=False)
 
         if self.plot_mode == "raw":
-            self._plot_raw(ax, self._last_time_h, self._last_heat_flow, self._last_cumulative_heat)
+            self._plot_raw(ax, self._last_time_h, self._last_heat_flow, self._last_cumulative_heat, compact=False)
         elif self._last_params is None:
             self._plot_waiting(ax, "等待动力学计算完成...")
         elif self.plot_mode == "knudsen":
-            self._plot_knudsen(ax, self._last_params)
+            self._plot_knudsen(ax, self._last_params, compact=False)
         elif self.plot_mode == "linear":
-            self._plot_linear(ax, self._last_params)
+            self._plot_linear(ax, self._last_params, compact=False)
         elif self.plot_mode == "envelope":
-            self._plot_envelope(ax, self._last_params)
+            self._plot_envelope(ax, self._last_params, compact=False)
 
-        self.fig.subplots_adjust(left=0.095, right=0.92, bottom=0.14, top=0.88)
+        self.fig.subplots_adjust(left=0.085, right=0.93, bottom=0.14, top=0.88)
         self.canvas.draw()
 
     def _render_dashboard(self) -> None:
@@ -124,29 +129,32 @@ class ScientificCanvas(QWidget):
         axes = self.fig.subplots(2, 2)
         for row in axes:
             for ax in row:
-                self._style_axis(ax)
+                self._style_axis(ax, compact=True)
 
-        self._plot_raw(axes[0, 0], self._last_time_h, self._last_heat_flow, self._last_cumulative_heat)
+        self._plot_raw(axes[0, 0], self._last_time_h, self._last_heat_flow, self._last_cumulative_heat, compact=True)
         if self._last_params is None:
             for ax in [axes[0, 1], axes[1, 0], axes[1, 1]]:
                 self._plot_waiting(ax, "Awaiting Calculation...")
         else:
-            self._plot_knudsen(axes[0, 1], self._last_params)
-            self._plot_linear(axes[1, 0], self._last_params)
-            self._plot_envelope(axes[1, 1], self._last_params)
+            self._plot_knudsen(axes[0, 1], self._last_params, compact=True)
+            self._plot_linear(axes[1, 0], self._last_params, compact=True)
+            self._plot_envelope(axes[1, 1], self._last_params, compact=True)
 
-        self.fig.subplots_adjust(left=0.075, right=0.94, bottom=0.075, top=0.925, wspace=0.42, hspace=0.42)
+        self.fig.subplots_adjust(left=0.075, right=0.945, bottom=0.085, top=0.92, wspace=0.35, hspace=0.42)
         self.canvas.draw()
 
     def _plot_waiting(self, ax, message: str) -> None:
-        ax.text(0.5, 0.5, message, ha="center", va="center", fontsize=13, color="#6b7280")
+        ax.text(0.5, 0.5, message, ha="center", va="center", fontsize=12, color="#6b7280")
         ax.set_axis_off()
 
-    def _plot_raw(self, ax, time_h: np.ndarray, heat_flow: np.ndarray, cumulative_heat: np.ndarray) -> None:
-        ax.set_title(self.MODE_TITLES["raw"], fontweight="bold", fontsize=14, pad=10)
-        line1 = ax.plot(time_h, heat_flow, "k-", linewidth=2.2, label="Heat Flow (mW/g)")
-        ax.set_xlabel("Time (h)", fontweight="bold", fontsize=12)
-        ax.set_ylabel("Heat Flow (mW/g)", fontweight="bold", fontsize=12)
+    def _plot_raw(self, ax, time_h: np.ndarray, heat_flow: np.ndarray, cumulative_heat: np.ndarray, compact: bool = False) -> None:
+        title_size = 11 if compact else 14
+        label_size = 9 if compact else 12
+        legend_size = 8 if compact else 10
+        ax.set_title(self.MODE_TITLES["raw"], fontweight="bold", fontsize=title_size, pad=8)
+        line1 = ax.plot(time_h, heat_flow, "k-", linewidth=1.8 if compact else 2.2, label="Heat Flow (mW/g)")
+        ax.set_xlabel("Time (h)", fontweight="bold", fontsize=label_size)
+        ax.set_ylabel("Heat Flow (mW/g)", fontweight="bold", fontsize=label_size)
 
         valid_idx = time_h > 0.5
         if np.any(valid_idx):
@@ -154,21 +162,25 @@ class ScientificCanvas(QWidget):
             min_hf = float(np.min(heat_flow[valid_idx]))
             ax.set_ylim(min_hf - 0.1 * max_hf, max_hf * 1.2)
 
-        self.ax_raw_twin = ax.twinx()
-        line2 = self.ax_raw_twin.plot(time_h, cumulative_heat, "r-", linewidth=2.2, label="Cumulative Heat (J/g)")
-        self.ax_raw_twin.set_ylabel("Cumulative Heat (J/g)", color="red", fontweight="bold", fontsize=12)
-        self.ax_raw_twin.tick_params(axis="y", colors="red", which="both", labelsize=11)
-        self.ax_raw_twin.spines["right"].set_color("red")
-        self.ax_raw_twin.spines["right"].set_linewidth(1.4)
+        twin = ax.twinx()
+        self.ax_raw_twin = twin
+        line2 = twin.plot(time_h, cumulative_heat, "r-", linewidth=1.8 if compact else 2.2, label="Cumulative Heat (J/g)")
+        twin.set_ylabel("Cumulative Heat (J/g)", color="red", fontweight="bold", fontsize=label_size)
+        twin.tick_params(axis="y", colors="red", which="both", labelsize=8 if compact else 11)
+        twin.spines["right"].set_color("red")
+        twin.spines["right"].set_linewidth(1.2 if compact else 1.4)
         if np.max(cumulative_heat) > 0:
-            self.ax_raw_twin.set_ylim(0, np.max(cumulative_heat) * 1.1)
+            twin.set_ylim(0, np.max(cumulative_heat) * 1.1)
 
         lines = line1 + line2
         labels = [line.get_label() for line in lines]
-        ax.legend(lines, labels, loc="center right", frameon=True, edgecolor="black", fontsize=10)
+        ax.legend(lines, labels, loc="best", frameon=True, edgecolor="black", fontsize=legend_size)
 
-    def _plot_knudsen(self, ax, params: KineticsParameters) -> None:
-        ax.set_title(self.MODE_TITLES["knudsen"], fontweight="bold", fontsize=14, pad=10)
+    def _plot_knudsen(self, ax, params: KineticsParameters, compact: bool = False) -> None:
+        title_size = 11 if compact else 14
+        label_size = 9 if compact else 12
+        legend_size = 8 if compact else 10
+        ax.set_title(self.MODE_TITLES["knudsen"], fontweight="bold", fontsize=title_size, pad=8)
         if not params.origin_knudsen:
             self._plot_waiting(ax, "无 Knudsen 绘图数据")
             return
@@ -178,7 +190,7 @@ class ScientificCanvas(QWidget):
         x_fit = params.origin_knudsen.get("X_Fit: 1/(t-t0) [h^-1]", [])
         y_fit = params.origin_knudsen.get("Y_Fit: 1/Q [J^-1*g]", [])
 
-        ax.scatter(x_all, y_all, color="gray", s=16, alpha=0.55, label="Raw Data")
+        ax.scatter(x_all, y_all, color="gray", s=10 if compact else 16, alpha=0.55, label="Raw Data")
         valid_mask = ~np.isnan(x_fit) & ~np.isnan(y_fit)
         r2_text = ""
         if np.sum(valid_mask) > 2:
@@ -186,14 +198,17 @@ class ScientificCanvas(QWidget):
             if not np.isnan(corr):
                 r2_text = fr" ($R^2={corr ** 2:.4f}$)"
         if np.sum(valid_mask) > 0:
-            ax.plot(x_fit[valid_mask], y_fit[valid_mask], "r-", linewidth=2.6, label=fr"Linear Fit{r2_text}")
+            ax.plot(x_fit[valid_mask], y_fit[valid_mask], "r-", linewidth=2.0 if compact else 2.6, label=fr"Linear Fit{r2_text}")
 
-        ax.set_xlabel(r"$1/(t-t_0)\ [h^{-1}]$", fontweight="bold", fontsize=12)
-        ax.set_ylabel(r"$1/Q\ [J^{-1}\cdot g]$", fontweight="bold", fontsize=12)
-        ax.legend(loc="best", frameon=True, edgecolor="black", fontsize=10)
+        ax.set_xlabel(r"$1/(t-t_0)\ [h^{-1}]$", fontweight="bold", fontsize=label_size)
+        ax.set_ylabel(r"$1/Q\ [J^{-1}\cdot g]$", fontweight="bold", fontsize=label_size)
+        ax.legend(loc="best", frameon=True, edgecolor="black", fontsize=legend_size)
 
-    def _plot_linear(self, ax, params: KineticsParameters) -> None:
-        ax.set_title(self.MODE_TITLES["linear"], fontweight="bold", fontsize=14, pad=10)
+    def _plot_linear(self, ax, params: KineticsParameters, compact: bool = False) -> None:
+        title_size = 11 if compact else 14
+        label_size = 9 if compact else 12
+        legend_size = 8 if compact else 10
+        ax.set_title(self.MODE_TITLES["linear"], fontweight="bold", fontsize=title_size, pad=8)
         if not params.origin_kd_linear:
             self._plot_waiting(ax, "无 K-D 分段拟合数据")
             return
@@ -201,25 +216,28 @@ class ScientificCanvas(QWidget):
         d_lin = params.origin_kd_linear
         x_ng, y_ng = d_lin.get("[NG] X: ln(t-t0)", []), d_lin.get("[NG] Y: ln(-ln(1-α))", [])
         if len(x_ng) > 0:
-            ax.scatter(x_ng, y_ng, s=18, color="limegreen", alpha=0.72, label=fr"NG Data ($R^2={params.r2_ng:.4f}$)", zorder=2)
-            ax.plot(x_ng, params.n * x_ng + params.n * np.log(params.k1), color="darkgreen", linewidth=1.8, zorder=3)
+            ax.scatter(x_ng, y_ng, s=10 if compact else 18, color="limegreen", alpha=0.72, label=fr"NG ($R^2={params.r2_ng:.4f}$)", zorder=2)
+            ax.plot(x_ng, params.n * x_ng + params.n * np.log(params.k1), color="darkgreen", linewidth=1.4 if compact else 1.8, zorder=3)
 
         x_i, y_i = d_lin.get("[I] X: ln(t-t0)", []), d_lin.get("[I] Y: ln(1-(1-α)^1/3)", [])
         if len(x_i) > 0:
-            ax.scatter(x_i, y_i, s=18, color="red", alpha=0.72, label=fr"I Data ($R^2={params.r2_i:.4f}$)", zorder=2)
-            ax.plot(x_i, x_i + np.log(params.k2), color="darkred", linewidth=1.8, zorder=3)
+            ax.scatter(x_i, y_i, s=10 if compact else 18, color="red", alpha=0.72, label=fr"I ($R^2={params.r2_i:.4f}$)", zorder=2)
+            ax.plot(x_i, x_i + np.log(params.k2), color="darkred", linewidth=1.4 if compact else 1.8, zorder=3)
 
         x_d, y_d = d_lin.get("[D] X: ln(t-t0)", []), d_lin.get("[D] Y: 2*ln(1-(1-α)^1/3)", [])
         if len(x_d) > 0:
-            ax.scatter(x_d, y_d, s=18, color="blue", alpha=0.72, label=fr"D Data ($R^2={params.r2_d:.4f}$)", zorder=2)
-            ax.plot(x_d, x_d + np.log(params.k3), color="darkblue", linewidth=1.8, zorder=3)
+            ax.scatter(x_d, y_d, s=10 if compact else 18, color="blue", alpha=0.72, label=fr"D ($R^2={params.r2_d:.4f}$)", zorder=2)
+            ax.plot(x_d, x_d + np.log(params.k3), color="darkblue", linewidth=1.4 if compact else 1.8, zorder=3)
 
-        ax.set_xlabel(r"$\ln(t-t_0)$", fontweight="bold", fontsize=12)
-        ax.set_ylabel("Kinetic Functions", fontweight="bold", fontsize=12)
-        ax.legend(loc="best", frameon=True, edgecolor="black", fontsize=10)
+        ax.set_xlabel(r"$\ln(t-t_0)$", fontweight="bold", fontsize=label_size)
+        ax.set_ylabel("Kinetic Functions", fontweight="bold", fontsize=label_size)
+        ax.legend(loc="best", frameon=True, edgecolor="black", fontsize=legend_size)
 
-    def _plot_envelope(self, ax, params: KineticsParameters) -> None:
-        ax.set_title(self.MODE_TITLES["envelope"], fontweight="bold", fontsize=14, pad=10)
+    def _plot_envelope(self, ax, params: KineticsParameters, compact: bool = False) -> None:
+        title_size = 11 if compact else 14
+        label_size = 9 if compact else 12
+        legend_size = 8 if compact else 10
+        ax.set_title(self.MODE_TITLES["envelope"], fontweight="bold", fontsize=title_size, pad=8)
         if not params.origin_rates:
             self._plot_waiting(ax, "无机制包络线数据")
             return
@@ -230,22 +248,22 @@ class ScientificCanvas(QWidget):
         f_i = params.origin_rates["Y3: F_I [h^-1]"]
         f_d = params.origin_rates["Y4: F_D [h^-1]"]
 
-        ax.plot(alpha_exp, rate_exp, color="black", linestyle="-", linewidth=2.6, label=r"$d\alpha/dt$", zorder=4)
-        ax.plot(alpha_exp, f_ng, color="limegreen", linestyle="-.", linewidth=2.0, label=r"$F_{NG}(\alpha)$", zorder=3)
-        ax.plot(alpha_exp, f_i, color="red", linestyle="--", linewidth=2.0, label=r"$F_I(\alpha)$", zorder=3)
-        ax.plot(alpha_exp, f_d, color="blue", linestyle=":", linewidth=2.2, label=r"$F_D(\alpha)$", zorder=3)
+        ax.plot(alpha_exp, rate_exp, color="black", linestyle="-", linewidth=2.0 if compact else 2.6, label=r"$d\alpha/dt$", zorder=4)
+        ax.plot(alpha_exp, f_ng, color="limegreen", linestyle="-.", linewidth=1.6 if compact else 2.0, label=r"$F_{NG}(\alpha)$", zorder=3)
+        ax.plot(alpha_exp, f_i, color="red", linestyle="--", linewidth=1.6 if compact else 2.0, label=r"$F_I(\alpha)$", zorder=3)
+        ax.plot(alpha_exp, f_d, color="blue", linestyle=":", linewidth=1.8 if compact else 2.2, label=r"$F_D(\alpha)$", zorder=3)
 
         y_max = np.max(rate_exp) * 1.35 if len(rate_exp) > 0 else 0.1
-        ax.axvline(x=params.alpha_1, color="gray", linestyle="--", linewidth=1.1, alpha=0.65)
-        ax.text(params.alpha_1 + 0.015, y_max * 0.08, fr"$\alpha_1$={params.alpha_1:.4f}", fontsize=10, color="#333333")
-        ax.axvline(x=params.alpha_2, color="gray", linestyle="--", linewidth=1.1, alpha=0.65)
-        ax.text(params.alpha_2 + 0.015, y_max * 0.08, fr"$\alpha_2$={params.alpha_2:.4f}", fontsize=10, color="#333333")
+        ax.axvline(x=params.alpha_1, color="gray", linestyle="--", linewidth=1.0, alpha=0.65)
+        ax.text(params.alpha_1 + 0.015, y_max * 0.08, fr"$\alpha_1$={params.alpha_1:.4f}", fontsize=8 if compact else 10, color="#333333")
+        ax.axvline(x=params.alpha_2, color="gray", linestyle="--", linewidth=1.0, alpha=0.65)
+        ax.text(params.alpha_2 + 0.015, y_max * 0.08, fr"$\alpha_2$={params.alpha_2:.4f}", fontsize=8 if compact else 10, color="#333333")
 
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, y_max)
-        ax.set_xlabel(r"$\alpha$", fontsize=12, fontweight="bold")
-        ax.set_ylabel(r"$d\alpha/dt\ [h^{-1}]$", fontsize=12, fontweight="bold")
-        ax.legend(loc="upper right", frameon=False, fontsize=10)
+        ax.set_xlabel(r"$\alpha$", fontsize=label_size, fontweight="bold")
+        ax.set_ylabel(r"$d\alpha/dt\ [h^{-1}]$", fontsize=label_size, fontweight="bold")
+        ax.legend(loc="upper right", frameon=False, fontsize=legend_size)
 
     def save_individual_plots(self, dir_path: str):
         """导出 dashboard 总图和四张独立高清图。"""
