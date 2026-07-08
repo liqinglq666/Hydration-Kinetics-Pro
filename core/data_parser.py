@@ -93,6 +93,8 @@ class CalorimetryParser:
                 time_h=df["time_h"].to_numpy(dtype=float),
                 heat_flow_mw_g=heat_flow_mw_g.to_numpy(dtype=float),
                 cumulative_heat_j_g=cumulative_heat_j_g.to_numpy(dtype=float),
+                input_mode=self.input_mode,
+                detected_unit_mode=detected_mode,
             )
         except DataParserError:
             raise
