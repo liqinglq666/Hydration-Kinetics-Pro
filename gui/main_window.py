@@ -127,6 +127,14 @@ class MainWindow(QMainWindow):
         self.control_panel.btn_extract.setEnabled(True)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g)
 
+        parser_warnings = getattr(data, "parser_warnings", [])
+        if parser_warnings:
+            QMessageBox.warning(
+                self,
+                "数据单位提醒",
+                "\n\n".join(parser_warnings) + "\n\n本次不会拦截计算，程序将继续按照 GUI 当前选择的单位模式处理数据。",
+            )
+
     def _on_finished(self, res) -> None:
         params, data = res
         self.cached_params = params
@@ -237,6 +245,12 @@ class MainWindow(QMainWindow):
             {"Item": "t50 (h)", "Value": round(p.t50_h, 6), "Interpretation": "t0 后达到 effective Qmax/2 的特征时间"},
         ]
         pd.DataFrame(qc_rows).to_excel(writer, sheet_name="QC_Traceability", index=False)
+
+        parser_warnings = list(getattr(d, "parser_warnings", []))
+        if parser_warnings:
+            pd.DataFrame(
+                [{"No.": idx + 1, "Parser Warning": msg} for idx, msg in enumerate(parser_warnings)]
+            ).to_excel(writer, sheet_name="QC_Parser_Warnings", index=False)
 
         r2_rows = []
         for stage, value in [
