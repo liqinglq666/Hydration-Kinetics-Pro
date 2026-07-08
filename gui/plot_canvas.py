@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib
 
 matplotlib.use('QtAgg')  # 强制使用 Qt 后端，防止主线程阻塞
@@ -5,6 +7,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from matplotlib.ticker import AutoMinorLocator
+from matplotlib.transforms import Bbox
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -220,15 +223,37 @@ class ScientificCanvas(QWidget):
         # 图例去背景色，避免遮盖曲线
         ax.legend(loc='upper right', frameon=False, fontsize=12)
 
+    def _save_cropped_axis(self, ax, output_path: Path, extra_axes=None, dpi: int = 600) -> None:
+        """Save one subplot as a publication-style cropped image from the dashboard figure."""
+        self.canvas.draw()
+        renderer = self.canvas.get_renderer()
+        axes = [ax] + list(extra_axes or [])
+        bboxes = [item.get_tightbbox(renderer) for item in axes if item is not None]
+        bbox = Bbox.union(bboxes).expanded(1.08, 1.12)
+        bbox_inches = bbox.transformed(self.fig.dpi_scale_trans.inverted())
+        self.fig.savefig(output_path, dpi=dpi, bbox_inches=bbox_inches, facecolor='white')
+
     def save_individual_plots(self, dir_path: str):
         """
-        导出高清学术图谱引擎。
+        导出高清学术图谱。
+
+        输出内容：
+        1. 2x2 dashboard 总图；
+        2. 四张独立 cropped subplot，便于直接放入论文、PPT 或 Origin 对照排版。
         """
-        import os
-        from pathlib import Path
         try:
             out_dir = Path(dir_path)
             out_dir.mkdir(parents=True, exist_ok=True)
-            self.fig.savefig(out_dir / 'Kinetics_Dashboard_HighRes.png', dpi=400, bbox_inches='tight')
+
+            self.fig.savefig(out_dir / 'Kinetics_Dashboard_HighRes.png', dpi=600, bbox_inches='tight', facecolor='white')
+            self._save_cropped_axis(
+                self.axes[0, 0],
+                out_dir / 'Fig1_Calorimetry_Raw_Data.png',
+                extra_axes=[self.ax_raw_twin],
+                dpi=600,
+            )
+            self._save_cropped_axis(self.axes[0, 1], out_dir / 'Fig2_Knudsen_Extrapolation.png', dpi=600)
+            self._save_cropped_axis(self.axes[1, 0], out_dir / 'Fig3_KD_Integral_Domain_Regressions.png', dpi=600)
+            self._save_cropped_axis(self.axes[1, 1], out_dir / 'Fig4_Kinetics_Mechanism_Envelope.png', dpi=600)
         except Exception as e:
             raise RuntimeError(f"图像渲染流写入失败: {str(e)}")
