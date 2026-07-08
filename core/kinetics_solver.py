@@ -278,30 +278,42 @@ class KDSolver:
         q_calc = q_valid[valid_idx]
 
         if len(t_calc) < 10:
-            raise KineticsCalculationError("Knudsen 外推所需的有效量热数据不足。请使用更完整的中后期水化数据。")
+            raise KineticsCalculationError("t0 之后有效正累计放热点不足，无法计算 Qmax 或表观水化度。")
 
         x_all = 1.0 / (t_calc - t0)
         y_all = 1.0 / q_calc
         total_time = t_calc[-1]
+        q_final = float(np.max(q_calc))
 
         t_threshold = max(t_peak * 2.0, t0 + 12.0)
         t_threshold = min(t_threshold, total_time * 0.6)
         fit_mask = t_calc > t_threshold
-
         if np.sum(fit_mask) < 10:
             fit_mask = t_calc > (total_time * 0.7)
 
-        if np.sum(fit_mask) < 3:
-            raise KineticsCalculationError("Knudsen 拟合窗口数据点不足，无法可靠外推 Qmax。")
+        x_fit = np.array([], dtype=float)
+        y_fit = np.array([], dtype=float)
+        slope = np.nan
+        intercept = np.nan
+        r2_knudsen = np.nan
+        knudsen_fit_available = False
 
-        x_fit = x_all[fit_mask]
-        y_fit = y_all[fit_mask]
-        if len(np.unique(x_fit)) < 2:
-            raise KineticsCalculationError("Knudsen 拟合窗口时间点重复，无法线性回归。")
+        if np.sum(fit_mask) >= 3:
+            x_candidate = x_all[fit_mask]
+            y_candidate = y_all[fit_mask]
+            if len(np.unique(x_candidate)) >= 2:
+                x_fit = x_candidate
+                y_fit = y_candidate
+                slope, intercept, r_value, _, _ = linregress(x_fit, y_fit)
+                r2_knudsen = float(r_value**2) if np.isfinite(r_value) else np.nan
+                knudsen_fit_available = True
 
-        slope, intercept, r_value, _, _ = linregress(x_fit, y_fit)
-        r2_knudsen = float(r_value**2) if np.isfinite(r_value) else 0.0
-        q_final = float(np.max(q_calc))
+        def estimate_t50(qmax_value: float) -> float:
+            target = qmax_value / 2.0
+            if target > np.nanmax(q_calc):
+                self._add_warning("当前测试时长内累计放热尚未达到 Qmax/2，t50 使用最接近的末端数据点估计；请谨慎解释 t50。")
+            return float(t_calc[np.argmin(np.abs(q_calc - target))] - t0)
+
         qmax_fallback_used = False
 
         if self.manual_qmax_total_j_g is not None:
@@ -313,10 +325,23 @@ class KDSolver:
                     "手动 Q∞ 不足：Q∞ - Q(t0) 必须大于 t0 后当前最大累计放热。"
                     f"当前 Q(t0)={q_at_t0:.4f} J/g，t0 后 Q_final={q_final:.4f} J/g。"
                 )
-            t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+            if not knudsen_fit_available:
+                self._add_warning("Knudsen 拟合窗口不可用；已使用手动 Q∞ 作为 Qmax 来源，Knudsen R² 记为 NaN。")
+            t50 = estimate_t50(qmax)
             qmax_total = float(self.manual_qmax_total_j_g)
             qmax_method = "manual_total_cumulative_heat_qinf"
             logger.info(f"使用手动 Q∞={self.manual_qmax_total_j_g:.4f} J/g；t0 后有效 Qmax={qmax:.4f} J/g。")
+        elif not knudsen_fit_available:
+            if not self.allow_qmax_fallback:
+                raise KineticsCalculationError(
+                    "Knudsen 拟合窗口数据点不足，且已关闭 Q_final × 1.15 fallback。请手动指定 Q∞ 或检查后期数据。"
+                )
+            self._add_warning("Knudsen 拟合窗口数据点不足，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
+            qmax = float(q_final * 1.15)
+            t50 = estimate_t50(qmax)
+            qmax_total = float(q_at_t0 + qmax)
+            qmax_fallback_used = True
+            qmax_method = "fallback_q_final_x_1.15"
         elif intercept <= 0 or slope <= 0 or np.isnan(intercept) or (1.0 / intercept < q_final * 1.05):
             if not self.allow_qmax_fallback:
                 raise KineticsCalculationError(
@@ -324,7 +349,7 @@ class KDSolver:
                 )
             self._add_warning("Knudsen 宏观拟合失效，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
             qmax = float(q_final * 1.15)
-            t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+            t50 = estimate_t50(qmax)
             qmax_total = float(q_at_t0 + qmax)
             qmax_fallback_used = True
             qmax_method = "fallback_q_final_x_1.15"
@@ -340,7 +365,7 @@ class KDSolver:
                     )
                 self._add_warning("Knudsen 外推发散，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
                 qmax = float(q_final * 1.15)
-                t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+                t50 = estimate_t50(qmax)
                 qmax_total = float(q_at_t0 + qmax)
                 qmax_fallback_used = True
                 qmax_method = "fallback_q_final_x_1.15"
