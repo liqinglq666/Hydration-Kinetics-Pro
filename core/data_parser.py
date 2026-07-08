@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import Literal
 
 import pandas as pd
 
@@ -8,9 +9,22 @@ from utils.exceptions import DataParserError
 from utils.logger import logger
 
 
+InputMode = Literal["total", "normalized"]
+
+
 class CalorimetryParser:
-    def __init__(self, sample_mass_g: float = 1.0) -> None:
-        self.sample_mass_g = sample_mass_g
+    """Parse calorimetry data with explicit unit normalization.
+
+    input_mode="total": columns are total heat flow (mW) and total cumulative heat (J),
+    so values are divided by sample_mass_g.
+
+    input_mode="normalized": columns are already mass-normalized heat flow (mW/g)
+    and cumulative heat (J/g), so sample_mass_g is validated but not applied.
+    """
+
+    def __init__(self, sample_mass_g: float = 1.0, input_mode: InputMode = "total") -> None:
+        self.sample_mass_g = float(sample_mass_g)
+        self.input_mode = input_mode
 
     def parse(self, file_path: Path) -> HydrationData:
         if not file_path.exists():
@@ -19,24 +33,39 @@ class CalorimetryParser:
         if self.sample_mass_g <= 0:
             raise DataParserError("样品质量必须大于 0 g。")
 
+        if self.input_mode not in {"total", "normalized"}:
+            raise DataParserError("输入单位模式非法。请选择 total 或 normalized。")
+
+        parser_warnings = []
+
         try:
             suffix = file_path.suffix.lower()
             if suffix == ".csv":
                 df = self._read_csv(file_path)
-            elif suffix in [".xlsx", ".xls"]:
+            elif suffix == ".xlsx":
                 df = pd.read_excel(file_path)
             else:
-                raise DataParserError(f"不支持的文件格式: {suffix}。仅支持 .csv, .xlsx, .xls")
+                raise DataParserError("不支持的文件格式。当前仅支持 .csv 和 .xlsx；旧式 .xls 请先另存为 .xlsx。")
 
+            detected_mode = self._detect_unit_mode_from_headers(df.columns)
             df = self._normalize_columns(df)
 
-            target_cols = ["time_h", "heat_flow_mw", "cumulative_heat_j"]
+            target_cols = ["time_h", "heat_flow", "cumulative_heat"]
             missing_cols = [col for col in target_cols if col not in df.columns]
             if missing_cols:
                 raise DataParserError(
                     "数据表缺少关键列: "
                     f"{', '.join(missing_cols)}。请确认表头包含时间、热流和累计热量。"
                 )
+
+            if detected_mode and detected_mode != self.input_mode:
+                warning_msg = (
+                    "表头单位与 GUI 选择不一致："
+                    f"表头看起来是 {detected_mode} 数据，但当前选择为 {self.input_mode}。"
+                    "程序将尊重 GUI 当前选择继续计算，请确认这不是误选。"
+                )
+                parser_warnings.append(warning_msg)
+                logger.warning(warning_msg)
 
             for col in target_cols:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -50,15 +79,30 @@ class CalorimetryParser:
             if len(df) < 2 or not df["time_h"].is_monotonic_increasing:
                 raise DataParserError("时间列必须包含至少两个递增的数据点。")
 
-            df["heat_flow_mw_g"] = df["heat_flow_mw"] / self.sample_mass_g
-            df["cumulative_heat_j_g"] = df["cumulative_heat_j"] / self.sample_mass_g
+            if df["time_h"].iloc[0] < 0:
+                negative_time_warning = "检测到负时间点，将保留原始时间序列用于完整追踪；请确认仪器基线设置。"
+                parser_warnings.append(negative_time_warning)
+                logger.warning(negative_time_warning)
+
+            if self.input_mode == "total":
+                heat_flow_mw_g = df["heat_flow"] / self.sample_mass_g
+                cumulative_heat_j_g = df["cumulative_heat"] / self.sample_mass_g
+                logger.info("输入单位模式: total，总热流/总热量已按样品质量归一化。")
+            else:
+                heat_flow_mw_g = df["heat_flow"]
+                cumulative_heat_j_g = df["cumulative_heat"]
+                logger.info("输入单位模式: normalized，数据已视为 mW/g 与 J/g，不再除以质量。")
 
             logger.info(f"数据加载成功: {file_path.name} (解析引擎: {suffix})")
 
             return HydrationData(
-                time_h=df["time_h"].to_numpy(),
-                heat_flow_mw_g=df["heat_flow_mw_g"].to_numpy(),
-                cumulative_heat_j_g=df["cumulative_heat_j_g"].to_numpy(),
+                time_h=df["time_h"].to_numpy(dtype=float),
+                heat_flow_mw_g=heat_flow_mw_g.to_numpy(dtype=float),
+                cumulative_heat_j_g=cumulative_heat_j_g.to_numpy(dtype=float),
+                input_mode=self.input_mode,
+                detected_unit_mode=detected_mode,
+                sample_mass_g=self.sample_mass_g,
+                parser_warnings=parser_warnings,
             )
         except DataParserError:
             raise
@@ -85,28 +129,42 @@ class CalorimetryParser:
                 "timeh",
                 "timehour",
                 "timehours",
+                "elapsedtime",
+                "elapsedtimeh",
                 "时间",
                 "时间h",
                 "时间小时",
             },
-            "heat_flow_mw": {
+            "heat_flow": {
                 "heat_flow",
                 "heat_flow_mw",
+                "heat_flow_mw_g",
                 "heatflow",
                 "heatflowmw",
+                "heatflowmwg",
+                "power",
+                "powermw",
                 "热流",
                 "热流mw",
+                "热流mwg",
                 "放热速率",
                 "放热速率mw",
+                "放热速率mwg",
             },
-            "cumulative_heat_j": {
+            "cumulative_heat": {
                 "cumulative",
                 "cumulative_heat",
                 "cumulative_heat_j",
+                "cumulative_heat_j_g",
                 "cumulativeheat",
                 "cumulativeheatj",
+                "cumulativeheatjg",
+                "totalheat",
+                "totalheatj",
                 "累计热量",
                 "累积热量",
+                "累计热量jg",
+                "累积热量jg",
                 "累计放热",
                 "累积放热",
             },
@@ -125,6 +183,31 @@ class CalorimetryParser:
         return df.rename(columns=rename_map)
 
     @staticmethod
+    def _detect_unit_mode_from_headers(columns) -> InputMode | None:
+        normalized_hits = 0
+        total_hits = 0
+
+        for col in columns:
+            raw = str(col).strip().lower()
+            key = CalorimetryParser._column_key(raw)
+            looks_like_heat = any(token in key for token in ("heat", "flow", "power", "热流", "放热", "热量", "累计", "累积"))
+            if not looks_like_heat:
+                continue
+
+            if any(token in raw for token in ("mw/g", "mw g-1", "mw·g-1", "mw g^-1", "j/g", "j g-1", "j·g-1", "j g^-1")):
+                normalized_hits += 1
+            elif any(token in key for token in ("mwg", "jg")):
+                normalized_hits += 1
+            elif any(token in key for token in ("mw", "j")):
+                total_hits += 1
+
+        if normalized_hits > 0:
+            return "normalized"
+        if total_hits >= 2:
+            return "total"
+        return None
+
+    @staticmethod
     def _matches_column(key: str, aliases: set[str]) -> bool:
         if key in aliases:
             return True
@@ -134,5 +217,5 @@ class CalorimetryParser:
     def _column_key(column_name: object) -> str:
         key = str(column_name).strip().lower()
         key = re.sub(r"\([^)]*\)|（[^）]*）|\[[^]]*\]", "", key)
-        key = key.replace("/", "_").replace("-", "_")
+        key = key.replace("/", "_").replace("-", "_").replace("·", "_")
         return re.sub(r"[\s_]+", "", key)

@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
 # PyCharm / IDE specifics
 .idea/
@@ -13,6 +14,18 @@ __pycache__/
 venv/
 env/
 ENV/
+.venv/
+
+# Generated runtime artifacts
+*.log
+hydration_kinetics.log
+*_Kinetics_Report.xlsx
+*_Origin_Plot_Data.xlsx
+Kinetics_Dashboard_HighRes.png
+Fig1_Calorimetry_Raw_Data.png
+Fig2_Knudsen_Extrapolation.png
+Fig3_KD_Integral_Domain_Regressions.png
+Fig4_Kinetics_Mechanism_Envelope.png
 
 # OS generated files
 .DS_Store
@@ -22,4 +35,3 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
