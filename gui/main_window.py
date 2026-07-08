@@ -160,6 +160,7 @@ class MainWindow(QMainWindow):
         try:
             with pd.ExcelWriter(save_path, engine="openpyxl") as writer:
                 if self.cached_params:
+                    self._write_qc_tables(writer)
                     self._write_kinetics_tables(writer)
 
                 self._table_to_df(self.results_panel.table_periods, has_vertical_header=True).to_excel(
@@ -175,27 +176,68 @@ class MainWindow(QMainWindow):
             if self.cached_params:
                 self._write_origin_plot_data(save_path)
 
-            self.control_panel.update_status("已生成数据报表与 Origin 绘图源数据。")
+            self.control_panel.update_status("已生成数据报表、QC 追溯表与 Origin 绘图源数据。")
             self._open_system_folder(save_path)
 
         except Exception as e:
             QMessageBox.critical(self, "报表生成失败", f"Excel 写入失败:\n{str(e)}")
 
+    def _r2_quality(self, r2_value: float, stage: str = "") -> tuple[str, str]:
+        if r2_value is None or not np.isfinite(r2_value):
+            return "Unknown", "R² 无法计算，请检查拟合窗口数据。"
+        if r2_value >= 0.95:
+            return "Excellent", "拟合优度很高，可作为主要定量结果。"
+        if r2_value >= 0.85:
+            return "Good", "拟合较好，可用于定量比较，但建议结合图形复核。"
+        if r2_value >= 0.70:
+            return "Caution", "拟合一般，建议在论文或报告中谨慎解释。"
+        return "Low", f"{stage} 拟合偏低，建议复核数据质量、拟合窗口或机理适用性。"
+
+    def _write_qc_tables(self, writer: pd.ExcelWriter) -> None:
+        p = self.cached_params
+        d = self.cached_hydration_data
+        mix_name = self.current_data_path.stem if self.current_data_path else "Sample"
+
+        qc_rows = [
+            {"Item": "Sample", "Value": mix_name, "Interpretation": "样品或文件名"},
+            {"Item": "Source File", "Value": str(self.current_data_path) if self.current_data_path else "-", "Interpretation": "原始数据路径"},
+            {"Item": "Input Mode", "Value": getattr(p, "input_mode", getattr(d, "input_mode", "unknown")), "Interpretation": "total=总热流/总热量；normalized=已归一化 mW/g、J/g"},
+            {"Item": "Detected Unit Mode", "Value": getattr(p, "detected_unit_mode", getattr(d, "detected_unit_mode", None)) or "not detected", "Interpretation": "由表头自动识别；为空说明表头单位不明确"},
+            {"Item": "Sample Mass (g)", "Value": getattr(d, "sample_mass_g", 1.0), "Interpretation": "total 模式会用该质量归一化；normalized 模式仅记录，不再参与计算"},
+            {"Item": "Qmax Method", "Value": getattr(p, "qmax_method", "unknown"), "Interpretation": "Knudsen 线性外推或 fallback 补偿策略"},
+            {"Item": "Qmax Fallback Used", "Value": "YES" if getattr(p, "qmax_fallback_used", False) else "NO", "Interpretation": "YES 表示 Qmax 不是直接来自可靠线性外推"},
+            {"Item": "Qmax (J/g)", "Value": round(p.qmax_j_g, 6), "Interpretation": "最终用于 alpha 计算的极限放热量"},
+            {"Item": "t0 (h)", "Value": round(p.t0_h, 6), "Interpretation": "诱导期结束或起算时间"},
+            {"Item": "t50 (h)", "Value": round(p.t50_h, 6), "Interpretation": "达到 Qmax/2 的特征时间"},
+        ]
+        pd.DataFrame(qc_rows).to_excel(writer, sheet_name="QC_Traceability", index=False)
+
+        r2_rows = []
+        for stage, value in [
+            ("Knudsen Qmax", getattr(p, "r2_knudsen", np.nan)),
+            ("NG stage", p.r2_ng),
+            ("I stage", p.r2_i),
+            ("D stage", p.r2_d),
+        ]:
+            quality, note = self._r2_quality(float(value), stage=stage)
+            if stage == "Knudsen Qmax" and getattr(p, "qmax_fallback_used", False):
+                quality = "Fallback"
+                note = "Knudsen 拟合触发 fallback；Qmax 使用 Q_final * 1.15，R² 仅反映拟合窗口线性程度。"
+            r2_rows.append({"Fit Object": stage, "R2": round(float(value), 6) if np.isfinite(value) else "-", "Quality": quality, "Interpretation": note})
+        pd.DataFrame(r2_rows).to_excel(writer, sheet_name="QC_R2_Review", index=False)
+
+        warnings = list(getattr(p, "warnings", []))
+        if not warnings:
+            warnings = ["No solver warning was recorded."]
+        pd.DataFrame(
+            [{"No.": idx + 1, "Warning": msg} for idx, msg in enumerate(warnings)]
+        ).to_excel(writer, sheet_name="QC_Warnings", index=False)
+
     def _write_kinetics_tables(self, writer: pd.ExcelWriter) -> None:
         p = self.cached_params
         mix_name = self.current_data_path.stem if self.current_data_path else "Sample"
 
-        x_k_fit = p.origin_knudsen.get("X_Fit: 1/(t-t0) [h^-1]", np.array([]))
-        y_k_fit = p.origin_knudsen.get("Y_Fit: 1/Q [J^-1*g]", np.array([]))
-        valid_mask = ~np.isnan(x_k_fit) & ~np.isnan(y_k_fit)
-        x_k_fit, y_k_fit = x_k_fit[valid_mask], y_k_fit[valid_mask]
-
-        r2_knudsen = "-"
-        if len(x_k_fit) > 2:
-            corr = np.corrcoef(x_k_fit, y_k_fit)[0, 1]
-            if not np.isnan(corr):
-                r2_knudsen = round(corr**2, 5)
-
+        r2_knudsen = round(getattr(p, "r2_knudsen", 0.0), 5)
         knudsen_eq = f"1/Q={1 / p.qmax_j_g:.5f}+{p.t50_h / p.qmax_j_g:.5f}/(t-t0)"
         pd.DataFrame(
             [
@@ -205,6 +247,8 @@ class MainWindow(QMainWindow):
                     "t50/h": round(p.t50_h, 2),
                     "1/Q=1/Qmax+t50/Qmax(t-t0)": knudsen_eq,
                     "R2": r2_knudsen,
+                    "Qmax Method": getattr(p, "qmax_method", "unknown"),
+                    "Fallback Used": "YES" if getattr(p, "qmax_fallback_used", False) else "NO",
                 }
             ]
         ).to_excel(writer, sheet_name="Tab5_Knudsen", index=False)
@@ -222,10 +266,13 @@ class MainWindow(QMainWindow):
                     "Mixture": mix_name,
                     "F_NG equation": eq_ng,
                     "R2 (NG)": round(p.r2_ng, 4),
+                    "NG Quality": self._r2_quality(p.r2_ng, "NG")[0],
                     "F_I equation": eq_i,
                     "R2 (I)": round(p.r2_i, 4),
+                    "I Quality": self._r2_quality(p.r2_i, "I")[0],
                     "F_D equation": eq_d,
                     "R2 (D)": round(p.r2_d, 4),
+                    "D Quality": self._r2_quality(p.r2_d, "D")[0],
                 }
             ]
         ).to_excel(writer, sheet_name="Tab6_KD_Eqs", index=False)
