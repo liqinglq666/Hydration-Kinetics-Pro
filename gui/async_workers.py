@@ -8,7 +8,7 @@ from utils.logger import logger
 class KineticsWorker(QThread):
     progress = Signal(str)
     data_loaded = Signal(object)
-    finished = Signal(tuple)
+    analysis_finished = Signal(tuple)
     error = Signal(str)
 
     def __init__(
@@ -51,7 +51,7 @@ class KineticsWorker(QThread):
             )
             params = solver.execute_pipeline()
 
-            self.finished.emit((params, data))
+            self.analysis_finished.emit((params, data))
 
         except Exception as e:
             logger.error(f"Worker 线程执行管线崩溃: {str(e)}")
