@@ -1,5 +1,6 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
@@ -13,7 +14,7 @@ from PySide6.QtWidgets import (
 
 class ControlPanel(QWidget):
     load_requested = Signal()
-    calculate_requested = Signal(float, int)
+    calculate_requested = Signal(float, int, str)
     extract_requested = Signal(str)
     export_excel_requested = Signal()
     export_images_requested = Signal()
@@ -25,7 +26,7 @@ class ControlPanel(QWidget):
     def _init_ui(self):
         layout = QVBoxLayout(self)
 
-        self.btn_load = QPushButton("导入量热数据 (CSV/Excel)")
+        self.btn_load = QPushButton("导入量热数据 (CSV/XLSX)")
         self.btn_calc = QPushButton("执行动力学全解析")
         self.btn_calc.setEnabled(False)
 
@@ -44,6 +45,14 @@ class ControlPanel(QWidget):
         self.spin_peaks.setValue(1)
         param_layout.addWidget(self.spin_peaks)
 
+        unit_layout = QVBoxLayout()
+        unit_layout.addWidget(QLabel("<b>输入数据单位</b>"))
+        self.combo_input_mode = QComboBox()
+        self.combo_input_mode.addItem("总热流 mW / 总热量 J，需要按质量归一化", "total")
+        self.combo_input_mode.addItem("已归一化 mW/g / J/g，不再除以质量", "normalized")
+        self.combo_input_mode.setToolTip("务必按仪器导出单位选择。选错会导致 Qmax、速率常数和水化度整体失真。")
+        unit_layout.addWidget(self.combo_input_mode)
+
         extract_layout = QHBoxLayout()
         extract_layout.addWidget(QLabel("目标时间 (h):"))
         self.input_times = QLineEdit("1, 10, 24, 48, 60, 72")
@@ -59,7 +68,7 @@ class ControlPanel(QWidget):
             "background-color: #f8f9fa; font-weight: bold; border: 1px solid #ced4da; padding: 5px;"
         )
 
-        self.btn_export_images = QPushButton("保存四宫格科研图像")
+        self.btn_export_images = QPushButton("保存科研图像")
         self.btn_export_images.setEnabled(False)
         self.btn_export_images.setStyleSheet(
             "background-color: #f8f9fa; font-weight: bold; border: 1px solid #ced4da; padding: 5px;"
@@ -70,6 +79,7 @@ class ControlPanel(QWidget):
 
         layout.addWidget(self.btn_load)
         layout.addLayout(param_layout)
+        layout.addLayout(unit_layout)
         layout.addWidget(self.btn_calc)
 
         layout.addSpacing(15)
@@ -91,7 +101,11 @@ class ControlPanel(QWidget):
     def _connect_signals(self):
         self.btn_load.clicked.connect(self.load_requested.emit)
         self.btn_calc.clicked.connect(
-            lambda: self.calculate_requested.emit(self.spin_mass.value(), self.spin_peaks.value())
+            lambda: self.calculate_requested.emit(
+                self.spin_mass.value(),
+                self.spin_peaks.value(),
+                self.combo_input_mode.currentData(),
+            )
         )
         self.btn_extract.clicked.connect(lambda: self.extract_requested.emit(self.input_times.text()))
         self.btn_export_excel.clicked.connect(self.export_excel_requested.emit)
