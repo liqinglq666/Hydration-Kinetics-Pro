@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
+    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -20,15 +21,18 @@ class ResultsPanel(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("ResultsPanel")
         self._init_ui()
+        self._apply_styles()
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
         self.table = QTableWidget(16, 2)
         self.table.setHorizontalHeaderLabels(["特征物理量", "解析数值"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self._prepare_table(self.table)
         self.table.verticalHeader().setVisible(False)
 
         keys = [
@@ -58,80 +62,63 @@ class ResultsPanel(QWidget):
         self.table_periods = QTableWidget(3, 3)
         self.table_periods.setHorizontalHeaderLabels(["起点 (h)", "终点 (h)", "时长 (h)"])
         self.table_periods.setVerticalHeaderLabels(["休眠期", "加速期", "减速期"])
-        self.table_periods.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self._prepare_table(self.table_periods)
 
         self.table_peaks = QTableWidget(0, 3)
         self.table_peaks.setHorizontalHeaderLabels(["特征峰", "时间 (h)", "速率 (mW/g)"])
-        self.table_peaks.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self._prepare_table(self.table_peaks)
         self.table_peaks.verticalHeader().setVisible(False)
 
         self.table_heat = QTableWidget(0, 2)
         self.table_heat.setHorizontalHeaderLabels(["目标龄期 (h)", "放热量 (J/g)"])
-        self.table_heat.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self._prepare_table(self.table_heat)
         self.table_heat.verticalHeader().setVisible(False)
 
-        layout.addLayout(self._create_header_with_copy("<b>K-D 动力学核心参数与评估</b>", self.table))
-        layout.addWidget(self.table)
-        layout.addSpacing(10)
+        layout.addWidget(self._create_section("K-D 动力学核心参数与评估", self.table))
+        layout.addWidget(self._create_section("水化机制阶段时间特征", self.table_periods))
+        layout.addWidget(self._create_section("放热速率特征峰提取", self.table_peaks))
+        layout.addWidget(self._create_section("特定龄期累计热量提取", self.table_heat))
 
-        layout.addLayout(self._create_header_with_copy("<b>水化机制阶段时间特征</b>", self.table_periods))
-        layout.addWidget(self.table_periods)
-        layout.addSpacing(10)
+    def _prepare_table(self, table: QTableWidget) -> None:
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setAlternatingRowColors(True)
+        table.setShowGrid(False)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.verticalHeader().setDefaultSectionSize(30)
+        table.horizontalHeader().setMinimumHeight(30)
 
-        layout.addLayout(self._create_header_with_copy("<b>放热速率特征峰提取</b>", self.table_peaks))
-        layout.addWidget(self.table_peaks)
-        layout.addSpacing(10)
+    def _create_section(self, title: str, target_table: QTableWidget) -> QGroupBox:
+        box = QGroupBox(title)
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(10, 12, 10, 10)
+        box_layout.setSpacing(8)
 
-        layout.addLayout(self._create_header_with_copy("<b>特定龄期累计热量提取</b>", self.table_heat))
-        layout.addWidget(self.table_heat)
+        header_layout = QHBoxLayout()
+        caption = QLabel(self._section_caption(title))
+        caption.setObjectName("sectionCaption")
 
-    def _create_header_with_copy(self, title_html: str, target_table: QTableWidget) -> QHBoxLayout:
-        h_layout = QHBoxLayout()
-        lbl = QLabel(title_html)
-
-        btn_copy = QPushButton("复制表格")
-        btn_copy.setFixedWidth(80)
+        btn_copy = QPushButton("复制")
+        btn_copy.setObjectName("copyButton")
+        btn_copy.setFixedWidth(58)
         btn_copy.setCursor(Qt.PointingHandCursor)
-        self._set_button_style(btn_copy, is_success=False)
         btn_copy.clicked.connect(lambda: self._copy_table_to_clipboard(target_table, btn_copy))
 
-        h_layout.addWidget(lbl)
-        h_layout.addStretch()
-        h_layout.addWidget(btn_copy)
+        header_layout.addWidget(caption)
+        header_layout.addStretch()
+        header_layout.addWidget(btn_copy)
+        box_layout.addLayout(header_layout)
+        box_layout.addWidget(target_table)
+        return box
 
-        return h_layout
-
-    def _set_button_style(self, btn: QPushButton, is_success: bool) -> None:
-        if is_success:
-            btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: #d3f9d8;
-                    border: 1px solid #b2f2bb;
-                    border-radius: 4px;
-                    padding: 2px 5px;
-                    font-size: 11px;
-                    color: #2b8a3e;
-                    font-weight: bold;
-                }
-                """
-            )
-        else:
-            btn.setStyleSheet(
-                """
-                QPushButton {
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 4px;
-                    padding: 2px 5px;
-                    font-size: 11px;
-                    color: #495057;
-                }
-                QPushButton:hover {
-                    background-color: #e9ecef;
-                }
-                """
-            )
+    def _section_caption(self, title: str) -> str:
+        captions = {
+            "K-D 动力学核心参数与评估": "用于论文主参数表与模型质量快速检查",
+            "水化机制阶段时间特征": "休眠期、加速期、减速期的时间划分",
+            "放热速率特征峰提取": "自动识别的主峰与多峰特征",
+            "特定龄期累计热量提取": "1 h、24 h、72 h 等指定龄期快速摘录",
+        }
+        return captions.get(title, "")
 
     def _copy_table_to_clipboard(self, table: QTableWidget, btn: QPushButton) -> None:
         rows = table.rowCount()
@@ -161,12 +148,16 @@ class ResultsPanel(QWidget):
         QApplication.clipboard().setText("\n".join(text_lines))
 
         btn.setText("已复制")
-        self._set_button_style(btn, is_success=True)
+        btn.setProperty("copied", True)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
         QTimer.singleShot(1500, lambda: self._reset_button_state(btn))
 
     def _reset_button_state(self, btn: QPushButton) -> None:
-        btn.setText("复制表格")
-        self._set_button_style(btn, is_success=False)
+        btn.setText("复制")
+        btn.setProperty("copied", False)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
 
     def display_results(self, params: KineticsParameters) -> None:
         values = [
@@ -192,6 +183,7 @@ class ResultsPanel(QWidget):
             text = f"{val:.4e}" if i in [4, 5, 6] else f"{val:.4f}"
             item = QTableWidgetItem(text)
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            item.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(i, 1, item)
 
         periods_data = [
@@ -224,5 +216,76 @@ class ResultsPanel(QWidget):
             item_h = QTableWidgetItem(heat_text)
             item_t.setFlags(item_t.flags() & ~Qt.ItemIsEditable)
             item_h.setFlags(item_h.flags() & ~Qt.ItemIsEditable)
+            item_t.setTextAlignment(Qt.AlignCenter)
+            item_h.setTextAlignment(Qt.AlignCenter)
             self.table_heat.setItem(i, 0, item_t)
             self.table_heat.setItem(i, 1, item_h)
+
+    def _apply_styles(self) -> None:
+        self.setStyleSheet(
+            """
+            QWidget#ResultsPanel {
+                background: transparent;
+                color: #1f2937;
+            }
+            QGroupBox {
+                background-color: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 10px;
+                margin-top: 12px;
+                padding: 10px;
+                font-weight: 800;
+                color: #111827;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 12px;
+                padding: 0 6px;
+                background-color: #f6f8fb;
+                color: #374151;
+            }
+            QLabel#sectionCaption {
+                color: #6b7280;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            QTableWidget {
+                background: #ffffff;
+                alternate-background-color: #f9fafb;
+                border: 1px solid #eef2f7;
+                border-radius: 6px;
+                color: #111827;
+                gridline-color: #eef2f7;
+                selection-background-color: #dbeafe;
+                selection-color: #111827;
+            }
+            QHeaderView::section {
+                background-color: #f3f4f6;
+                color: #374151;
+                padding: 5px;
+                border: 0;
+                border-bottom: 1px solid #e5e7eb;
+                font-weight: 700;
+            }
+            QPushButton#copyButton {
+                background: #f9fafb;
+                color: #374151;
+                border: 1px solid #d1d5db;
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 12px;
+                font-weight: 700;
+            }
+            QPushButton#copyButton:hover {
+                background: #eff6ff;
+                border-color: #bfdbfe;
+                color: #1d4ed8;
+            }
+            QPushButton#copyButton[copied="true"] {
+                background: #ecfdf5;
+                border-color: #a7f3d0;
+                color: #047857;
+            }
+            """
+        )
