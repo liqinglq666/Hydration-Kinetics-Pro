@@ -44,6 +44,7 @@ class KineticsParameters:
     # ==========================================
     input_mode: str = "unknown"
     detected_unit_mode: Optional[str] = None
+    sample_mass_g: float = 1.0
     qmax_method: str = "unknown"
     qmax_fallback_used: bool = False
     warnings: List[str] = field(default_factory=list)
@@ -64,3 +65,4 @@ class HydrationData:
     alpha: Optional[np.ndarray] = None
     input_mode: str = "unknown"
     detected_unit_mode: Optional[str] = None
+    sample_mass_g: float = 1.0
