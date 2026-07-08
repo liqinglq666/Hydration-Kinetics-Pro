@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QSplitter,
     QTableWidget,
@@ -38,6 +39,13 @@ class MainWindow(QMainWindow):
         self.current_data_path = None
         self.cached_hydration_data = None
         self.cached_params = None
+        self.plot_buttons = {}
+        self.plot_captions = {
+            "raw": "热流与累计热量，优先用于检查原始曲线质量。",
+            "knudsen": "Qmax 外推图，重点看线性区与 R²。",
+            "linear": "K-D 三阶段线性化拟合，重点看 NG / I / D 分段质量。",
+            "envelope": "机制速率包络，重点看 α1、α2 与控制阶段转换。",
+        }
         self._init_ui()
         self._apply_window_styles()
 
@@ -51,7 +59,7 @@ class MainWindow(QMainWindow):
 
         self.control_panel = ControlPanel()
         self.results_panel = ResultsPanel()
-        self.canvas = ScientificCanvas()
+        self.canvas = ScientificCanvas(plot_mode="raw")
 
         left_scroll = QScrollArea()
         left_scroll.setObjectName("SidebarScroll")
@@ -60,24 +68,6 @@ class MainWindow(QMainWindow):
         left_scroll.setFrameShape(QScrollArea.NoFrame)
         left_scroll.setMinimumWidth(390)
         left_scroll.setMaximumWidth(430)
-
-        self.plot_card = QFrame()
-        self.plot_card.setObjectName("WorkspaceCard")
-        plot_layout = QVBoxLayout(self.plot_card)
-        plot_layout.setContentsMargins(12, 10, 12, 12)
-        plot_layout.setSpacing(8)
-
-        plot_header = QHBoxLayout()
-        plot_title = QLabel("图表工作区")
-        plot_title.setObjectName("CardTitle")
-        plot_caption = QLabel("四通道量热曲线、Knudsen 外推、K-D 分段拟合与机制包络")
-        plot_caption.setObjectName("CardCaption")
-        plot_header.addWidget(plot_title)
-        plot_header.addSpacing(12)
-        plot_header.addWidget(plot_caption)
-        plot_header.addStretch()
-        plot_layout.addLayout(plot_header)
-        plot_layout.addWidget(self.canvas, stretch=1)
 
         self.results_card = QFrame()
         self.results_card.setObjectName("WorkspaceCard")
@@ -88,7 +78,7 @@ class MainWindow(QMainWindow):
         results_header = QHBoxLayout()
         results_title = QLabel("结果数据区")
         results_title.setObjectName("CardTitle")
-        results_caption = QLabel("关键参数、阶段特征、特征峰与指定龄期热量")
+        results_caption = QLabel("数据表是主视图：关键摘要、K-D 参数、阶段特征与指定龄期热量")
         results_caption.setObjectName("CardCaption")
         results_header.addWidget(results_title)
         results_header.addSpacing(12)
@@ -103,11 +93,48 @@ class MainWindow(QMainWindow):
         results_scroll.setFrameShape(QScrollArea.NoFrame)
         results_layout.addWidget(results_scroll, stretch=1)
 
+        self.plot_card = QFrame()
+        self.plot_card.setObjectName("WorkspaceCard")
+        plot_layout = QVBoxLayout(self.plot_card)
+        plot_layout.setContentsMargins(12, 10, 12, 12)
+        plot_layout.setSpacing(8)
+
+        plot_header = QHBoxLayout()
+        plot_title = QLabel("图表折叠卡片")
+        plot_title.setObjectName("CardTitle")
+        self.plot_caption = QLabel(self.plot_captions["raw"])
+        self.plot_caption.setObjectName("CardCaption")
+        plot_header.addWidget(plot_title)
+        plot_header.addSpacing(12)
+        plot_header.addWidget(self.plot_caption)
+        plot_header.addStretch()
+        plot_layout.addLayout(plot_header)
+
+        selector_layout = QHBoxLayout()
+        selector_layout.setSpacing(8)
+        for mode, label in [
+            ("raw", "① Raw Data"),
+            ("knudsen", "② Knudsen"),
+            ("linear", "③ K-D Regressions"),
+            ("envelope", "④ Envelope"),
+        ]:
+            btn = QPushButton(label)
+            btn.setObjectName("PlotAccordionButton")
+            btn.setCheckable(True)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setMinimumHeight(34)
+            btn.clicked.connect(lambda checked=False, m=mode: self._select_plot_card(m))
+            self.plot_buttons[mode] = btn
+            selector_layout.addWidget(btn)
+        self.plot_buttons["raw"].setChecked(True)
+        plot_layout.addLayout(selector_layout)
+        plot_layout.addWidget(self.canvas, stretch=1)
+
         right_splitter = QSplitter(Qt.Vertical)
         right_splitter.setObjectName("RightSplitter")
-        right_splitter.addWidget(self.plot_card)
         right_splitter.addWidget(self.results_card)
-        right_splitter.setSizes([700, 260])
+        right_splitter.addWidget(self.plot_card)
+        right_splitter.setSizes([630, 340])
         right_splitter.setChildrenCollapsible(False)
 
         main_splitter = QSplitter(Qt.Horizontal)
@@ -124,6 +151,12 @@ class MainWindow(QMainWindow):
         self.control_panel.extract_requested.connect(self._handle_heat_extraction)
         self.control_panel.export_excel_requested.connect(self._handle_excel_export)
         self.control_panel.export_images_requested.connect(self._handle_image_export)
+
+    def _select_plot_card(self, mode: str) -> None:
+        for key, btn in self.plot_buttons.items():
+            btn.setChecked(key == mode)
+        self.plot_caption.setText(self.plot_captions.get(mode, ""))
+        self.canvas.set_plot_mode(mode)
 
     def _handle_load(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -485,6 +518,25 @@ class MainWindow(QMainWindow):
             QLabel#CardCaption {
                 color: #6b7280;
                 font-size: 12px;
+            }
+            QPushButton#PlotAccordionButton {
+                background: #f9fafb;
+                color: #374151;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-size: 12px;
+                font-weight: 800;
+            }
+            QPushButton#PlotAccordionButton:hover {
+                background: #eff6ff;
+                border-color: #bfdbfe;
+                color: #1d4ed8;
+            }
+            QPushButton#PlotAccordionButton:checked {
+                background: #2563eb;
+                border-color: #1d4ed8;
+                color: #ffffff;
             }
             QSplitter::handle {
                 background: #e5e7eb;
