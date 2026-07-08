@@ -1,6 +1,8 @@
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -22,6 +24,7 @@ class ResultsPanel(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("ResultsPanel")
+        self.metric_labels = {}
         self._init_ui()
         self._apply_styles()
 
@@ -29,6 +32,8 @@ class ResultsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
+
+        layout.addWidget(self._create_metric_summary())
 
         self.table = QTableWidget(16, 2)
         self.table.setHorizontalHeaderLabels(["特征物理量", "解析数值"])
@@ -78,6 +83,52 @@ class ResultsPanel(QWidget):
         layout.addWidget(self._create_section("水化机制阶段时间特征", self.table_periods))
         layout.addWidget(self._create_section("放热速率特征峰提取", self.table_peaks))
         layout.addWidget(self._create_section("特定龄期累计热量提取", self.table_heat))
+
+    def _create_metric_summary(self) -> QGroupBox:
+        box = QGroupBox("关键结果摘要")
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(10, 12, 10, 10)
+        box_layout.setSpacing(8)
+
+        caption = QLabel("优先查看这些指标，再进入下方明细表复核。")
+        caption.setObjectName("sectionCaption")
+        box_layout.addWidget(caption)
+
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        metrics = [
+            ("t0", "--", "h"),
+            ("Qmax", "--", "J/g"),
+            ("t50", "--", "h"),
+            ("R² NG / I / D", "--", ""),
+            ("Qmax 来源", "--", ""),
+            ("Fallback", "--", ""),
+        ]
+        for idx, (name, value, unit) in enumerate(metrics):
+            card = self._create_metric_card(name, value, unit)
+            grid.addWidget(card, idx // 3, idx % 3)
+        box_layout.addLayout(grid)
+        return box
+
+    def _create_metric_card(self, name: str, value: str, unit: str) -> QFrame:
+        card = QFrame()
+        card.setObjectName("MetricCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(10, 8, 10, 8)
+        card_layout.setSpacing(2)
+
+        label_name = QLabel(name)
+        label_name.setObjectName("MetricName")
+        label_value = QLabel(value)
+        label_value.setObjectName("MetricValue")
+        label_unit = QLabel(unit)
+        label_unit.setObjectName("MetricUnit")
+
+        card_layout.addWidget(label_name)
+        card_layout.addWidget(label_value)
+        card_layout.addWidget(label_unit)
+        self.metric_labels[name] = label_value
+        return card
 
     def _prepare_table(self, table: QTableWidget) -> None:
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -160,6 +211,8 @@ class ResultsPanel(QWidget):
         btn.style().polish(btn)
 
     def display_results(self, params: KineticsParameters) -> None:
+        self._update_metric_summary(params)
+
         values = [
             params.t0_h,
             params.qmax_j_g,
@@ -208,6 +261,21 @@ class ResultsPanel(QWidget):
                 item.setTextAlignment(Qt.AlignCenter)
                 self.table_peaks.setItem(i, col, item)
 
+    def _update_metric_summary(self, params: KineticsParameters) -> None:
+        method = getattr(params, "qmax_method", "unknown")
+        method_label = {
+            "manual_total_cumulative_heat_qinf": "Manual Q∞",
+            "knudsen_linear_extrapolation": "Knudsen",
+            "fallback_q_final_x_1.15": "Fallback",
+        }.get(method, method)
+
+        self.metric_labels["t0"].setText(f"{params.t0_h:.3f}")
+        self.metric_labels["Qmax"].setText(f"{params.qmax_j_g:.2f}")
+        self.metric_labels["t50"].setText(f"{params.t50_h:.2f}")
+        self.metric_labels["R² NG / I / D"].setText(f"{params.r2_ng:.3f} / {params.r2_i:.3f} / {params.r2_d:.3f}")
+        self.metric_labels["Qmax 来源"].setText(method_label)
+        self.metric_labels["Fallback"].setText("YES" if getattr(params, "qmax_fallback_used", False) else "NO")
+
     def display_extracted_heat(self, times: np.ndarray, heats: np.ndarray) -> None:
         self.table_heat.setRowCount(len(times))
         for i in range(len(times)):
@@ -248,6 +316,26 @@ class ResultsPanel(QWidget):
             QLabel#sectionCaption {
                 color: #6b7280;
                 font-size: 12px;
+                font-weight: 500;
+            }
+            QFrame#MetricCard {
+                background-color: #f9fafb;
+                border: 1px solid #e5e7eb;
+                border-radius: 9px;
+            }
+            QLabel#MetricName {
+                color: #6b7280;
+                font-size: 11px;
+                font-weight: 700;
+            }
+            QLabel#MetricValue {
+                color: #111827;
+                font-size: 18px;
+                font-weight: 900;
+            }
+            QLabel#MetricUnit {
+                color: #6b7280;
+                font-size: 11px;
                 font-weight: 500;
             }
             QTableWidget {
