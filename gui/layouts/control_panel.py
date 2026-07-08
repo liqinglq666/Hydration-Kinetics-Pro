@@ -1,5 +1,6 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
@@ -14,7 +15,7 @@ from PySide6.QtWidgets import (
 
 class ControlPanel(QWidget):
     load_requested = Signal()
-    calculate_requested = Signal(float, int, str)
+    calculate_requested = Signal(float, int, str, bool, float, bool, float, bool)
     extract_requested = Signal(str)
     export_excel_requested = Signal()
     export_images_requested = Signal()
@@ -36,6 +37,7 @@ class ControlPanel(QWidget):
         self.spin_mass.setRange(0.01, 1000.0)
         self.spin_mass.setValue(1.00)
         self.spin_mass.setSingleStep(0.1)
+        self.spin_mass.setToolTip("total 模式下用于归一化。建议填写胶凝材料质量，而不是包含水、砂、纤维的总试样质量。")
         param_layout.addWidget(self.spin_mass)
 
         param_layout.addSpacing(10)
@@ -52,6 +54,42 @@ class ControlPanel(QWidget):
         self.combo_input_mode.addItem("已归一化 mW/g / J/g，不再除以质量", "normalized")
         self.combo_input_mode.setToolTip("务必按仪器导出单位选择。选错会导致 Qmax、速率常数和水化度整体失真。")
         unit_layout.addWidget(self.combo_input_mode)
+
+        anchor_layout = QVBoxLayout()
+        anchor_layout.addWidget(QLabel("<b>论文级锚点控制</b>"))
+
+        t0_layout = QHBoxLayout()
+        self.chk_manual_t0 = QCheckBox("手动 t0")
+        self.chk_manual_t0.setToolTip("仅当自动 t0 明显偏离诱导期低谷或加速期起点时启用。")
+        self.spin_manual_t0 = QDoubleSpinBox()
+        self.spin_manual_t0.setRange(0.0, 10000.0)
+        self.spin_manual_t0.setDecimals(4)
+        self.spin_manual_t0.setSingleStep(0.1)
+        self.spin_manual_t0.setSuffix(" h")
+        self.spin_manual_t0.setEnabled(False)
+        self.spin_manual_t0.setToolTip("K-D 动力学起算时间，应位于初始溶解峰之后、主加速峰之前。")
+        t0_layout.addWidget(self.chk_manual_t0)
+        t0_layout.addWidget(self.spin_manual_t0)
+        anchor_layout.addLayout(t0_layout)
+
+        qmax_layout = QHBoxLayout()
+        self.chk_manual_qmax = QCheckBox("手动 Q∞")
+        self.chk_manual_qmax.setToolTip("填写从实验起点计的最终累计热量 Q∞，单位 J/g。程序会自动扣除 Q(t0)，得到 t0 后有效 Qmax。")
+        self.spin_manual_qmax = QDoubleSpinBox()
+        self.spin_manual_qmax.setRange(0.001, 100000.0)
+        self.spin_manual_qmax.setDecimals(4)
+        self.spin_manual_qmax.setSingleStep(10.0)
+        self.spin_manual_qmax.setSuffix(" J/g")
+        self.spin_manual_qmax.setEnabled(False)
+        self.spin_manual_qmax.setToolTip("建议来自长龄期累计热量、理论极限热量或可靠文献。必须大于当前数据终点累计热量。")
+        qmax_layout.addWidget(self.chk_manual_qmax)
+        qmax_layout.addWidget(self.spin_manual_qmax)
+        anchor_layout.addLayout(qmax_layout)
+
+        self.chk_allow_qmax_fallback = QCheckBox("允许自动 Qmax 失败时使用 Q_final × 1.15 fallback")
+        self.chk_allow_qmax_fallback.setChecked(True)
+        self.chk_allow_qmax_fallback.setToolTip("关闭后，若 Knudsen 外推失效且未手动指定 Q∞，程序会直接报错，避免低置信度结果进入论文表格。")
+        anchor_layout.addWidget(self.chk_allow_qmax_fallback)
 
         extract_layout = QHBoxLayout()
         extract_layout.addWidget(QLabel("目标时间 (h):"))
@@ -80,6 +118,8 @@ class ControlPanel(QWidget):
         layout.addWidget(self.btn_load)
         layout.addLayout(param_layout)
         layout.addLayout(unit_layout)
+        layout.addSpacing(8)
+        layout.addLayout(anchor_layout)
         layout.addWidget(self.btn_calc)
 
         layout.addSpacing(15)
@@ -100,11 +140,18 @@ class ControlPanel(QWidget):
 
     def _connect_signals(self):
         self.btn_load.clicked.connect(self.load_requested.emit)
+        self.chk_manual_t0.toggled.connect(self.spin_manual_t0.setEnabled)
+        self.chk_manual_qmax.toggled.connect(self.spin_manual_qmax.setEnabled)
         self.btn_calc.clicked.connect(
             lambda: self.calculate_requested.emit(
                 self.spin_mass.value(),
                 self.spin_peaks.value(),
                 self.combo_input_mode.currentData(),
+                self.chk_manual_t0.isChecked(),
+                self.spin_manual_t0.value(),
+                self.chk_manual_qmax.isChecked(),
+                self.spin_manual_qmax.value(),
+                self.chk_allow_qmax_fallback.isChecked(),
             )
         )
         self.btn_extract.clicked.connect(lambda: self.extract_requested.emit(self.input_times.text()))
