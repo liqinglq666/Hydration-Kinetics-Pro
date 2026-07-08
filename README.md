@@ -17,15 +17,24 @@
 
 **Hydration Kinetics Pro (HK-Pro)** 是一个面向水泥基材料等温量热数据的桌面分析工具，用于从热流与累计放热曲线中提取 Krstulovic-Dabic (K-D) 水化动力学参数，并导出适合 OriginLab 或论文绘图整理的源数据。
 
-本项目核心关注三件事：
+本项目核心关注四件事：
 
 1. **单位明确**：输入数据必须声明是总热流/总热量，还是已经按质量归一化的 mW/g 与 J/g。
-2. **失败显式**：当数据不足以支撑 K-D 分段拟合时，程序会报错，而不是悄悄返回默认参数。
-3. **结果可追溯**：导出 Knudsen 外推、K-D 分段拟合、理论速率包络线、QC 追溯表和 warning 记录，便于复查和二次绘图。
+2. **锚点可控**：支持自动或手动指定 t0，支持自动 Knudsen、手动 Q∞ 或 fallback Qmax。
+3. **失败显式**：当数据不足以支撑 K-D 分段拟合时，程序会报错，而不是悄悄返回默认参数。
+4. **结果可追溯**：导出 Knudsen 外推、K-D 分段拟合、理论速率包络线、QC 追溯表和 warning 记录，便于复查和二次绘图。
 
 ---
 
 ## 🧮 Physics-Informed Core Equations
+
+### Apparent hydration degree after t0
+
+$$\alpha_{app}(t) = \frac{Q(t)-Q(t_0)}{Q_{max,eff}}$$
+
+其中 `Qmax,eff` 是 t0 之后的有效极限放热量。若用户手动输入 `Q∞`，程序会自动计算：
+
+$$Q_{max,eff}=Q_\infty-Q(t_0)$$
 
 ### Phase 1: Nucleation and Crystal Growth (NG Stage)
 
@@ -77,6 +86,27 @@ GUI 中必须选择输入数据单位：
 
 ---
 
+## 🎯 Thesis-grade anchor controls
+
+HK-Pro 默认自动识别 t0 与 Qmax，但也提供论文级手动锚点控制。
+
+| 控制项 | 推荐用途 | 注意事项 |
+| :--- | :--- | :--- |
+| 自动 t0 | 普通 OPC / 曲线低谷清晰的数据 | 自动在诱导期低谷附近识别 |
+| 手动 t0 | 自动 t0 落在噪声区、初始溶解峰或错误低谷时 | 应位于初始溶解峰之后、主加速峰之前 |
+| 自动 Knudsen Qmax | 后期 `1/Q` vs `1/(t-t0)` 线性良好时 | R² 与图形需人工复核 |
+| 手动 Q∞ | 有长龄期累计热量、理论极限热量或可靠文献值时 | 填写从实验起点计的总累计极限热量 J/g，程序会扣除 Q(t0) |
+| 允许 fallback | 快速筛查或 smoke test | fallback 使用 `Q_final × 1.15`，只适合低置信度比较 |
+
+推荐优先级：
+
+```text
+Manual Q∞ > Knudsen linear extrapolation > Q_final × 1.15 fallback
+Manual t0 > auto t0, but manual t0 must be justified by the heat-flow curve.
+```
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
@@ -89,8 +119,9 @@ python main.py
 1. 打开 GUI。
 2. 导入 `examples/sample_96h_calorimetry_normalized.csv`。
 3. 单位模式选择“已归一化 mW/g / J/g，不再除以质量”。
-4. 点击“执行动力学全解析”。
-5. 根据需要导出 Excel 报表或图像。
+4. 初次测试可保持 t0/Qmax 自动模式。
+5. 点击“执行动力学全解析”。
+6. 根据需要导出 Excel 报表或图像。
 
 ---
 
@@ -107,6 +138,8 @@ pytest
 - 表头单位与 GUI 单位模式不一致时会显式报错。
 - `.xls` 会被明确拒绝。
 - 96 h 合成量热数据可跑通 parser + solver。
+- 手动 t0 与手动 Q∞ 可传入 solver，并写入 QC metadata。
+- 不合理手动 Q∞ 会显式报错。
 - 极短数据会显式抛出 `KineticsCalculationError`。
 
 ---
@@ -117,12 +150,12 @@ pytest
 
 | 工作表 | 内容 | 用途 |
 | :--- | :--- | :--- |
-| `QC_Traceability` | 样品名、源文件、输入单位模式、识别单位模式、样品质量、Qmax 方法 | 追溯结果来源与单位处理 |
+| `QC_Traceability` | 样品名、源文件、输入单位模式、t0 方法、手动 t0、Q(t0)、Qmax 方法、手动 Q∞、fallback 状态 | 追溯结果来源与锚点处理 |
 | `QC_R2_Review` | Knudsen / NG / I / D 的 R² 与质量判读 | 快速判断拟合结果是否适合作为论文定量结果 |
 | `QC_Warnings` | solver warning 与 fallback 提醒 | 保留所有需要人工复核的风险点 |
-| `Tab5_Knudsen` | Qmax、t50、Knudsen 方程、R²、Qmax 方法 | 检查 Qmax 外推合理性 |
+| `Tab5_Knudsen` | Q(t0)、effective Qmax、total Q∞、t50、Knudsen 方程、R²、Qmax 方法 | 检查 Qmax 外推或手动设定合理性 |
 | `Tab6_KD_Eqs` | NG / I / D 分段方程、R²、质量标签 | 复查 K-D 参数来源 |
-| `Tab7_KD_Params` | n、K1、K2、K3、α1、α2 | 论文主参数表 |
+| `Tab7_KD_Params` | t0、Qmax 方法、n、K1、K2、K3、α1、α2 | 论文主参数表 |
 
 另行导出的 `Origin_Plot_Data.xlsx` 包含三个工作表：
 
@@ -142,16 +175,17 @@ pytest
 flowchart LR
     A[CSV/XLSX Data] --> B[CalorimetryParser]
     B --> C[Unit Normalization]
-    C --> D[KDSolver]
-    D --> E[Knudsen Qmax]
-    D --> F[K-D Linear Domains]
-    D --> G[Rate Envelope]
-    E --> H[GUI Tables]
-    F --> H
-    G --> I[Origin Plot Data]
-    H --> J[Excel Report]
-    D --> K[QC Traceability]
-    K --> J
+    C --> D[Anchor Controls]
+    D --> E[KDSolver]
+    E --> F[Auto or Manual t0]
+    E --> G[Manual Q∞ / Knudsen Qmax / fallback]
+    E --> H[K-D Linear Domains]
+    E --> I[Rate Envelope]
+    F --> J[QC Traceability]
+    G --> J
+    H --> K[Excel Report]
+    I --> L[Origin Plot Data]
+    J --> K
 ```
 
 ---
