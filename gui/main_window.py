@@ -84,7 +84,17 @@ class MainWindow(QMainWindow):
             self.control_panel.btn_export_excel.setEnabled(False)
             self.control_panel.btn_export_images.setEnabled(False)
 
-    def _handle_calc(self, mass: float, expected_peaks: int, input_mode: str) -> None:
+    def _handle_calc(
+        self,
+        mass: float,
+        expected_peaks: int,
+        input_mode: str,
+        use_manual_t0: bool,
+        manual_t0_h: float,
+        use_manual_qmax: bool,
+        manual_qmax_total_j_g: float,
+        allow_qmax_fallback: bool,
+    ) -> None:
         if self.current_data_path is None:
             QMessageBox.warning(self, "缺少数据文件", "请先导入量热数据文件。")
             return
@@ -95,7 +105,17 @@ class MainWindow(QMainWindow):
         self.control_panel.btn_export_excel.setEnabled(False)
         self.control_panel.btn_export_images.setEnabled(False)
 
-        self.worker = KineticsWorker(self.current_data_path, mass, expected_peaks, input_mode)
+        self.worker = KineticsWorker(
+            self.current_data_path,
+            mass,
+            expected_peaks,
+            input_mode,
+            use_manual_t0=use_manual_t0,
+            manual_t0_h=manual_t0_h,
+            use_manual_qmax=use_manual_qmax,
+            manual_qmax_total_j_g=manual_qmax_total_j_g,
+            allow_qmax_fallback=allow_qmax_fallback,
+        )
         self.worker.progress.connect(self.control_panel.update_status)
         self.worker.data_loaded.connect(self._on_data_loaded)
         self.worker.finished.connect(self._on_finished)
@@ -204,11 +224,17 @@ class MainWindow(QMainWindow):
             {"Item": "Input Mode", "Value": getattr(p, "input_mode", getattr(d, "input_mode", "unknown")), "Interpretation": "total=总热流/总热量；normalized=已归一化 mW/g、J/g"},
             {"Item": "Detected Unit Mode", "Value": getattr(p, "detected_unit_mode", getattr(d, "detected_unit_mode", None)) or "not detected", "Interpretation": "由表头自动识别；为空说明表头单位不明确"},
             {"Item": "Sample Mass (g)", "Value": getattr(d, "sample_mass_g", 1.0), "Interpretation": "total 模式会用该质量归一化；normalized 模式仅记录，不再参与计算"},
-            {"Item": "Qmax Method", "Value": getattr(p, "qmax_method", "unknown"), "Interpretation": "Knudsen 线性外推或 fallback 补偿策略"},
-            {"Item": "Qmax Fallback Used", "Value": "YES" if getattr(p, "qmax_fallback_used", False) else "NO", "Interpretation": "YES 表示 Qmax 不是直接来自可靠线性外推"},
-            {"Item": "Qmax (J/g)", "Value": round(p.qmax_j_g, 6), "Interpretation": "最终用于 alpha 计算的极限放热量"},
-            {"Item": "t0 (h)", "Value": round(p.t0_h, 6), "Interpretation": "诱导期结束或起算时间"},
-            {"Item": "t50 (h)", "Value": round(p.t50_h, 6), "Interpretation": "达到 Qmax/2 的特征时间"},
+            {"Item": "t0 Method", "Value": getattr(p, "t0_method", "auto_min_heat_flow"), "Interpretation": "auto_min_heat_flow=自动低谷识别；manual=用户手动指定"},
+            {"Item": "Manual t0 (h)", "Value": getattr(p, "manual_t0_h", None) if getattr(p, "manual_t0_h", None) is not None else "-", "Interpretation": "用户手动指定的 K-D 起算时间"},
+            {"Item": "Final t0 Used (h)", "Value": round(p.t0_h, 6), "Interpretation": "最终用于 α 与 K-D 拟合的 t0"},
+            {"Item": "Q(t0) (J/g)", "Value": round(getattr(p, "q_at_t0_j_g", 0.0), 6), "Interpretation": "手动 Q∞ 会先扣除该值，得到 t0 后有效 Qmax"},
+            {"Item": "Manual Q∞ Total (J/g)", "Value": getattr(p, "manual_qmax_total_j_g", None) if getattr(p, "manual_qmax_total_j_g", None) is not None else "-", "Interpretation": "从实验起点计的手动总累计极限热量"},
+            {"Item": "Qmax Method", "Value": getattr(p, "qmax_method", "unknown"), "Interpretation": "manual、Knudsen 线性外推或 fallback 补偿策略"},
+            {"Item": "Qmax Fallback Allowed", "Value": "YES" if getattr(p, "qmax_fallback_allowed", True) else "NO", "Interpretation": "NO 时自动外推失败会直接报错"},
+            {"Item": "Qmax Fallback Used", "Value": "YES" if getattr(p, "qmax_fallback_used", False) else "NO", "Interpretation": "YES 表示 Qmax 不是直接来自手动值或可靠线性外推"},
+            {"Item": "Effective Qmax after t0 (J/g)", "Value": round(p.qmax_j_g, 6), "Interpretation": "最终用于 α=[Q(t)-Q(t0)]/Qmax 的分母"},
+            {"Item": "Total Q∞ Equivalent (J/g)", "Value": round(getattr(p, "qmax_total_j_g", p.qmax_j_g), 6), "Interpretation": "从实验起点计的等效 Q∞=Q(t0)+effective Qmax"},
+            {"Item": "t50 (h)", "Value": round(p.t50_h, 6), "Interpretation": "t0 后达到 effective Qmax/2 的特征时间"},
         ]
         pd.DataFrame(qc_rows).to_excel(writer, sheet_name="QC_Traceability", index=False)
 
@@ -223,6 +249,9 @@ class MainWindow(QMainWindow):
             if stage == "Knudsen Qmax" and getattr(p, "qmax_fallback_used", False):
                 quality = "Fallback"
                 note = "Knudsen 拟合触发 fallback；Qmax 使用 Q_final * 1.15，R² 仅反映拟合窗口线性程度。"
+            if stage == "Knudsen Qmax" and getattr(p, "qmax_method", "") == "manual_total_cumulative_heat_qinf":
+                quality = "Manual"
+                note = "Qmax 由用户手动指定 Q∞ 决定；Knudsen R² 仅作为后期线性参考，不决定 Qmax。"
             r2_rows.append({"Fit Object": stage, "R2": round(float(value), 6) if np.isfinite(value) else "-", "Quality": quality, "Interpretation": note})
         pd.DataFrame(r2_rows).to_excel(writer, sheet_name="QC_R2_Review", index=False)
 
@@ -243,7 +272,9 @@ class MainWindow(QMainWindow):
             [
                 {
                     "Mixture": mix_name,
-                    "Qmax/(J·g-1)": round(p.qmax_j_g, 2),
+                    "Q(t0)/(J·g-1)": round(getattr(p, "q_at_t0_j_g", 0.0), 4),
+                    "Effective Qmax after t0/(J·g-1)": round(p.qmax_j_g, 2),
+                    "Total Q∞ equivalent/(J·g-1)": round(getattr(p, "qmax_total_j_g", p.qmax_j_g), 2),
                     "t50/h": round(p.t50_h, 2),
                     "1/Q=1/Qmax+t50/Qmax(t-t0)": knudsen_eq,
                     "R2": r2_knudsen,
@@ -281,6 +312,9 @@ class MainWindow(QMainWindow):
             [
                 {
                     "Mixture": mix_name,
+                    "t0 method": getattr(p, "t0_method", "auto_min_heat_flow"),
+                    "t0/h": round(p.t0_h, 4),
+                    "Qmax method": getattr(p, "qmax_method", "unknown"),
                     "n": round(p.n, 4),
                     "K'1": float(p.k1),
                     "K'2": float(p.k2),
