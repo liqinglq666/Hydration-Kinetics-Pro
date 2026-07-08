@@ -72,23 +72,30 @@ class MainWindow(QMainWindow):
             self,
             "选择量热数据",
             "",
-            "Data Files (*.csv *.xlsx *.xls);;CSV Files (*.csv);;Excel Files (*.xlsx *.xls)",
+            "Data Files (*.csv *.xlsx);;CSV Files (*.csv);;Excel Files (*.xlsx)",
         )
         if path:
             self.current_data_path = Path(path)
+            self.cached_hydration_data = None
+            self.cached_params = None
             self.control_panel.update_status(f"文件就绪: {self.current_data_path.name}")
             self.control_panel.btn_calc.setEnabled(True)
-            self.control_panel.btn_extract.setEnabled(True)
+            self.control_panel.btn_extract.setEnabled(False)
+            self.control_panel.btn_export_excel.setEnabled(False)
+            self.control_panel.btn_export_images.setEnabled(False)
 
-    def _handle_calc(self, mass: float, expected_peaks: int) -> None:
+    def _handle_calc(self, mass: float, expected_peaks: int, input_mode: str) -> None:
         if self.current_data_path is None:
             QMessageBox.warning(self, "缺少数据文件", "请先导入量热数据文件。")
             return
 
         self.control_panel.btn_calc.setEnabled(False)
         self.control_panel.btn_load.setEnabled(False)
+        self.control_panel.btn_extract.setEnabled(False)
+        self.control_panel.btn_export_excel.setEnabled(False)
+        self.control_panel.btn_export_images.setEnabled(False)
 
-        self.worker = KineticsWorker(self.current_data_path, mass, expected_peaks)
+        self.worker = KineticsWorker(self.current_data_path, mass, expected_peaks, input_mode)
         self.worker.progress.connect(self.control_panel.update_status)
         self.worker.data_loaded.connect(self._on_data_loaded)
         self.worker.finished.connect(self._on_finished)
@@ -97,6 +104,7 @@ class MainWindow(QMainWindow):
 
     def _on_data_loaded(self, data) -> None:
         self.cached_hydration_data = data
+        self.control_panel.btn_extract.setEnabled(True)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g)
 
     def _on_finished(self, res) -> None:
@@ -107,6 +115,7 @@ class MainWindow(QMainWindow):
 
         self.control_panel.btn_calc.setEnabled(True)
         self.control_panel.btn_load.setEnabled(True)
+        self.control_panel.btn_extract.setEnabled(True)
         self.control_panel.btn_export_excel.setEnabled(True)
         self.control_panel.btn_export_images.setEnabled(True)
         self.control_panel.update_status("解析完成。可以提取数据或导出图表。")
@@ -115,6 +124,7 @@ class MainWindow(QMainWindow):
         self.control_panel.update_status("核心引擎执行异常", is_error=True)
         self.control_panel.btn_calc.setEnabled(True)
         self.control_panel.btn_load.setEnabled(True)
+        self.control_panel.btn_extract.setEnabled(self.cached_hydration_data is not None)
         QMessageBox.critical(self, "计算失败", err_msg)
 
     def _handle_heat_extraction(self, times_str: str) -> None:
@@ -130,6 +140,7 @@ class MainWindow(QMainWindow):
                 target_times,
                 self.cached_hydration_data.time_h,
                 self.cached_hydration_data.cumulative_heat_j_g,
+                left=np.nan,
                 right=np.nan,
             )
             self.results_panel.display_extracted_heat(target_times, heats)
