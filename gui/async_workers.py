@@ -11,17 +11,18 @@ class KineticsWorker(QThread):
     finished = Signal(tuple)
     error = Signal(str)
 
-    def __init__(self, filepath, mass, expected_peaks):
+    def __init__(self, filepath, mass, expected_peaks, input_mode):
         super().__init__()
         self.filepath = filepath
         self.mass = float(mass)
-        self.expected_peaks = expected_peaks
+        self.expected_peaks = int(expected_peaks)
+        self.input_mode = str(input_mode)
 
     def run(self):
         try:
             self.progress.emit("正在加载量热数据...")
 
-            parser = CalorimetryParser(sample_mass_g=self.mass)
+            parser = CalorimetryParser(sample_mass_g=self.mass, input_mode=self.input_mode)
             data = parser.parse(self.filepath)
             self.data_loaded.emit(data)
 
