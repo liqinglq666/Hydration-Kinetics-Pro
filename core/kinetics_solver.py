@@ -22,6 +22,7 @@ class KDSolver:
     def __init__(self, data: HydrationData, expected_peaks: int = 1) -> None:
         self.data = data
         self.expected_peaks = int(expected_peaks)
+        self.warnings: List[str] = []
         if self.expected_peaks < 1:
             raise KineticsCalculationError("预期特征峰数必须至少为 1。")
 
@@ -32,7 +33,7 @@ class KDSolver:
         t_peak = self._detect_main_peak(t0)
         all_peaks = self._extract_all_peaks()
 
-        qmax, t50, dict_knudsen = self._calculate_knudsen(t0, t_peak)
+        qmax, t50, dict_knudsen, qmax_fallback_used, qmax_method, r2_knudsen = self._calculate_knudsen(t0, t_peak)
         if not np.isfinite(qmax) or qmax <= 0:
             raise KineticsCalculationError("Qmax 计算失败，无法继续 K-D 动力学分析。")
 
@@ -86,6 +87,7 @@ class KDSolver:
             r2_ng=r2_ng,
             r2_i=r2_i,
             r2_d=r2_d,
+            r2_knudsen=r2_knudsen,
             alpha_1=alpha_1,
             alpha_2=alpha_2,
             t_alpha_1_h=t_a1,
@@ -98,10 +100,19 @@ class KDSolver:
             accel_duration_h=max(0.0, t_peak - t0),
             decel_duration_h=max(0.0, t_end - t_peak),
             peaks=all_peaks,
+            input_mode=getattr(self.data, "input_mode", "unknown"),
+            detected_unit_mode=getattr(self.data, "detected_unit_mode", None),
+            qmax_method=qmax_method,
+            qmax_fallback_used=qmax_fallback_used,
+            warnings=list(dict.fromkeys(self.warnings)),
             origin_knudsen=dict_knudsen,
             origin_kd_linear=dict_linear,
             origin_rates=dict_rates,
         )
+
+    def _add_warning(self, message: str) -> None:
+        logger.warning(message)
+        self.warnings.append(message)
 
     def _validate_input_data(self) -> None:
         n = len(self.data.time_h)
@@ -117,6 +128,8 @@ class KDSolver:
             raise KineticsCalculationError("热流或累计热量列包含 NaN 或无穷值。")
         if np.nanmax(self.data.cumulative_heat_j_g) <= 0:
             raise KineticsCalculationError("累计热量必须包含正值。")
+        if np.any(np.diff(self.data.cumulative_heat_j_g) < -1e-6):
+            self._add_warning("累计热量存在局部下降，可能来自仪器噪声、基线校正或单位列选择错误；请复查原始数据。")
 
     def _extract_all_peaks(self) -> List[Tuple[float, float]]:
         heat_flow = self.data.heat_flow_mw_g
@@ -203,7 +216,7 @@ class KDSolver:
             hf_smoothed = hf_valid
         return float(t_valid[np.argmax(hf_smoothed)])
 
-    def _calculate_knudsen(self, t0: float, t_peak: float) -> Tuple[float, float, dict]:
+    def _calculate_knudsen(self, t0: float, t_peak: float) -> Tuple[float, float, dict, bool, str, float]:
         mask = self.data.time_h > t0
         t_valid = self.data.time_h[mask]
 
@@ -236,20 +249,27 @@ class KDSolver:
         if len(np.unique(x_fit)) < 2:
             raise KineticsCalculationError("Knudsen 拟合窗口时间点重复，无法线性回归。")
 
-        slope, intercept, _, _, _ = linregress(x_fit, y_fit)
-        q_final = np.max(q_calc)
+        slope, intercept, r_value, _, _ = linregress(x_fit, y_fit)
+        r2_knudsen = float(r_value**2) if np.isfinite(r_value) else 0.0
+        q_final = float(np.max(q_calc))
+        qmax_fallback_used = False
+        qmax_method = "knudsen_linear_extrapolation"
 
         if intercept <= 0 or slope <= 0 or np.isnan(intercept) or (1.0 / intercept < q_final * 1.05):
-            logger.warning("Knudsen 宏观拟合失效。触发理论热量补偿 (Q_final * 1.15)。")
+            self._add_warning("Knudsen 宏观拟合失效，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
             qmax = float(q_final * 1.15)
             t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+            qmax_fallback_used = True
+            qmax_method = "fallback_q_final_x_1.15"
         else:
             qmax = float(1.0 / intercept)
             t50 = float(slope * qmax)
             if qmax > q_final * 5.0 or not np.isfinite(t50) or t50 <= 0:
-                logger.warning("Knudsen 外推发散。触发理论热量补偿 (Q_final * 1.15)。")
+                self._add_warning("Knudsen 外推发散，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
                 qmax = float(q_final * 1.15)
                 t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+                qmax_fallback_used = True
+                qmax_method = "fallback_q_final_x_1.15"
 
         self.data.alpha = np.zeros_like(self.data.time_h, dtype=float)
         self.data.alpha[mask] = q_calc / qmax
@@ -262,7 +282,7 @@ class KDSolver:
             "Y_Fit: 1/Q [J^-1*g]": np.pad(y_fit, (0, max_len - len(y_fit)), constant_values=np.nan),
         }
 
-        return qmax, t50, dict_knudsen
+        return qmax, t50, dict_knudsen, qmax_fallback_used, qmax_method, r2_knudsen
 
     def _find_boundaries(self, k1: float, n: float, k2: float, k3: float, a_peak: float) -> Tuple[float, float]:
         a_scan = np.linspace(0.005, 0.995, 2000)
@@ -304,25 +324,21 @@ class KDSolver:
         min_points: int,
         label: str,
     ) -> np.ndarray:
-        """Select a fitting window without fabricating parameters.
-
-        The solver first tries a physically motivated alpha interval. If that interval is too narrow for a
-        particular heat-release curve, it expands to a broader fallback interval. If that still does not
-        provide enough points, it selects the nearest real alpha points around the intended center and logs
-        a warning. This keeps the fit data-derived while avoiding default constants.
-        """
+        """Select a fitting window without fabricating parameters."""
         alpha_max = float(np.nanmax(alpha))
         candidates = [
-            (max(0.01, lower), min(0.97, upper)),
-            (max(0.01, fallback_lower), min(0.97, fallback_upper)),
-            (max(0.01, alpha_max * 0.20), min(0.97, alpha_max * 0.92)),
+            (max(0.01, lower), min(0.97, upper), "physical"),
+            (max(0.01, fallback_lower), min(0.97, fallback_upper), "expanded"),
+            (max(0.01, alpha_max * 0.20), min(0.97, alpha_max * 0.92), "broad"),
         ]
 
-        for lo, hi in candidates:
+        for lo, hi, stage_mode in candidates:
             if hi <= lo:
                 continue
             mask = (alpha >= lo) & (alpha <= hi)
             if int(np.sum(mask)) >= min_points:
+                if stage_mode != "physical":
+                    self._add_warning(f"{label} 阶段物理窗口点数不足，已使用 {stage_mode} alpha 窗口参与拟合。")
                 return mask
 
         valid = np.where((alpha > 0.01) & (alpha < min(0.97, alpha_max * 0.97)))[0]
@@ -333,7 +349,7 @@ class KDSolver:
         nearest = valid[np.argsort(np.abs(alpha[valid] - center))[:min_points]]
         mask = np.zeros_like(alpha, dtype=bool)
         mask[np.sort(nearest)] = True
-        logger.warning(f"{label} 阶段物理窗口点数不足，已使用邻近 alpha 点扩展拟合窗口。")
+        self._add_warning(f"{label} 阶段物理窗口点数不足，已使用邻近 alpha 点扩展拟合窗口。")
         return mask
 
     def _safe_r2(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
