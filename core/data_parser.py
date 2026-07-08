@@ -36,6 +36,8 @@ class CalorimetryParser:
         if self.input_mode not in {"total", "normalized"}:
             raise DataParserError("输入单位模式非法。请选择 total 或 normalized。")
 
+        parser_warnings = []
+
         try:
             suffix = file_path.suffix.lower()
             if suffix == ".csv":
@@ -57,11 +59,13 @@ class CalorimetryParser:
                 )
 
             if detected_mode and detected_mode != self.input_mode:
-                raise DataParserError(
+                warning_msg = (
                     "表头单位与 GUI 选择不一致："
                     f"表头看起来是 {detected_mode} 数据，但当前选择为 {self.input_mode}。"
-                    "请在左侧“输入数据单位”中重新选择，避免 mW/g、J/g 被二次除以样品质量。"
+                    "程序将尊重 GUI 当前选择继续计算，请确认这不是误选。"
                 )
+                parser_warnings.append(warning_msg)
+                logger.warning(warning_msg)
 
             for col in target_cols:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -76,7 +80,9 @@ class CalorimetryParser:
                 raise DataParserError("时间列必须包含至少两个递增的数据点。")
 
             if df["time_h"].iloc[0] < 0:
-                logger.warning("检测到负时间点，将保留原始时间序列用于完整追踪；请确认仪器基线设置。")
+                negative_time_warning = "检测到负时间点，将保留原始时间序列用于完整追踪；请确认仪器基线设置。"
+                parser_warnings.append(negative_time_warning)
+                logger.warning(negative_time_warning)
 
             if self.input_mode == "total":
                 heat_flow_mw_g = df["heat_flow"] / self.sample_mass_g
@@ -96,6 +102,7 @@ class CalorimetryParser:
                 input_mode=self.input_mode,
                 detected_unit_mode=detected_mode,
                 sample_mass_g=self.sample_mass_g,
+                parser_warnings=parser_warnings,
             )
         except DataParserError:
             raise
