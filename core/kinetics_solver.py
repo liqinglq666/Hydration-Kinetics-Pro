@@ -1,7 +1,8 @@
+from typing import List, Optional, Tuple
+
 import numpy as np
-from scipy.signal import savgol_filter, find_peaks
+from scipy.signal import find_peaks, savgol_filter
 from scipy.stats import linregress
-from typing import Tuple, List
 
 from core.data_models import HydrationData, KineticsParameters
 from utils.exceptions import KineticsCalculationError
@@ -17,11 +18,22 @@ class KDSolver:
     2. 拟合失败必须显式报错，避免用户把 fallback 当作论文结果。
     3. 允许 Knudsen 理论热量补偿，但所有 K-D 分段参数必须来自有效数据窗口。
     4. K-D 分段窗口采用“物理窗口优先 + 数据驱动扩展”，避免窄窗口误伤平滑曲线。
+    5. 允许用户手动指定 t0 与总累计极限热量 Q∞，并完整记录来源。
     """
 
-    def __init__(self, data: HydrationData, expected_peaks: int = 1) -> None:
+    def __init__(
+        self,
+        data: HydrationData,
+        expected_peaks: int = 1,
+        manual_t0_h: Optional[float] = None,
+        manual_qmax_total_j_g: Optional[float] = None,
+        allow_qmax_fallback: bool = True,
+    ) -> None:
         self.data = data
         self.expected_peaks = int(expected_peaks)
+        self.manual_t0_h = None if manual_t0_h is None else float(manual_t0_h)
+        self.manual_qmax_total_j_g = None if manual_qmax_total_j_g is None else float(manual_qmax_total_j_g)
+        self.allow_qmax_fallback = bool(allow_qmax_fallback)
         self.warnings: List[str] = []
         if self.expected_peaks < 1:
             raise KineticsCalculationError("预期特征峰数必须至少为 1。")
@@ -29,11 +41,26 @@ class KDSolver:
     def execute_pipeline(self) -> KineticsParameters:
         self._validate_input_data()
 
-        t0 = self._detect_t0()
+        if self.manual_t0_h is None:
+            t0 = self._detect_t0()
+            t0_method = "auto_min_heat_flow"
+        else:
+            t0 = self._validate_manual_t0(self.manual_t0_h)
+            t0_method = "manual"
+
         t_peak = self._detect_main_peak(t0)
         all_peaks = self._extract_all_peaks()
 
-        qmax, t50, dict_knudsen, qmax_fallback_used, qmax_method, r2_knudsen = self._calculate_knudsen(t0, t_peak)
+        (
+            qmax,
+            t50,
+            q_at_t0,
+            qmax_total,
+            dict_knudsen,
+            qmax_fallback_used,
+            qmax_method,
+            r2_knudsen,
+        ) = self._calculate_qmax(t0, t_peak)
         if not np.isfinite(qmax) or qmax <= 0:
             raise KineticsCalculationError("Qmax 计算失败，无法继续 K-D 动力学分析。")
 
@@ -102,8 +129,15 @@ class KDSolver:
             peaks=all_peaks,
             input_mode=getattr(self.data, "input_mode", "unknown"),
             detected_unit_mode=getattr(self.data, "detected_unit_mode", None),
+            sample_mass_g=getattr(self.data, "sample_mass_g", 1.0),
+            t0_method=t0_method,
+            manual_t0_h=self.manual_t0_h,
+            q_at_t0_j_g=q_at_t0,
+            qmax_total_j_g=qmax_total,
+            manual_qmax_total_j_g=self.manual_qmax_total_j_g,
             qmax_method=qmax_method,
             qmax_fallback_used=qmax_fallback_used,
+            qmax_fallback_allowed=self.allow_qmax_fallback,
             warnings=list(dict.fromkeys(self.warnings)),
             origin_knudsen=dict_knudsen,
             origin_kd_linear=dict_linear,
@@ -178,6 +212,22 @@ class KDSolver:
             filtered_idx.sort()
         return [(float(time_h[idx]), float(heat_flow[idx])) for idx in filtered_idx]
 
+    def _validate_manual_t0(self, t0: float) -> float:
+        if not np.isfinite(t0):
+            raise KineticsCalculationError("手动 t0 必须是有限数值。")
+        t_min = float(self.data.time_h[0])
+        t_max = float(self.data.time_h[-1])
+        if t0 < t_min or t0 >= t_max:
+            raise KineticsCalculationError(f"手动 t0={t0:g} h 超出数据时间范围 [{t_min:g}, {t_max:g}) h。")
+        if np.sum(self.data.time_h > t0) < 20:
+            raise KineticsCalculationError("手动 t0 之后有效数据点过少，无法进行 K-D 拟合。")
+        q_at_t0 = float(np.interp(t0, self.data.time_h, self.data.cumulative_heat_j_g))
+        q_after = self.data.cumulative_heat_j_g[self.data.time_h > t0] - q_at_t0
+        if np.nanmax(q_after) <= 0:
+            raise KineticsCalculationError("手动 t0 之后累计放热没有正增长，请检查 t0 是否过晚。")
+        logger.info(f"使用手动 t0: {t0:.4f} h。")
+        return float(t0)
+
     def _detect_t0(self, search_window: Tuple[float, float] = (0.2, 10.0)) -> float:
         mask = (self.data.time_h >= search_window[0]) & (self.data.time_h <= search_window[1])
         t_win = self.data.time_h[mask]
@@ -216,7 +266,7 @@ class KDSolver:
             hf_smoothed = hf_valid
         return float(t_valid[np.argmax(hf_smoothed)])
 
-    def _calculate_knudsen(self, t0: float, t_peak: float) -> Tuple[float, float, dict, bool, str, float]:
+    def _calculate_qmax(self, t0: float, t_peak: float) -> Tuple[float, float, float, float, dict, bool, str, float]:
         mask = self.data.time_h > t0
         t_valid = self.data.time_h[mask]
 
@@ -253,26 +303,52 @@ class KDSolver:
         r2_knudsen = float(r_value**2) if np.isfinite(r_value) else 0.0
         q_final = float(np.max(q_calc))
         qmax_fallback_used = False
-        qmax_method = "knudsen_linear_extrapolation"
 
-        if intercept <= 0 or slope <= 0 or np.isnan(intercept) or (1.0 / intercept < q_final * 1.05):
+        if self.manual_qmax_total_j_g is not None:
+            if not np.isfinite(self.manual_qmax_total_j_g) or self.manual_qmax_total_j_g <= 0:
+                raise KineticsCalculationError("手动 Q∞ 必须是大于 0 的有限数值，单位为 J/g。")
+            qmax = float(self.manual_qmax_total_j_g - q_at_t0)
+            if qmax <= q_final:
+                raise KineticsCalculationError(
+                    "手动 Q∞ 不足：Q∞ - Q(t0) 必须大于 t0 后当前最大累计放热。"
+                    f"当前 Q(t0)={q_at_t0:.4f} J/g，t0 后 Q_final={q_final:.4f} J/g。"
+                )
+            t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+            qmax_total = float(self.manual_qmax_total_j_g)
+            qmax_method = "manual_total_cumulative_heat_qinf"
+            logger.info(f"使用手动 Q∞={self.manual_qmax_total_j_g:.4f} J/g；t0 后有效 Qmax={qmax:.4f} J/g。")
+        elif intercept <= 0 or slope <= 0 or np.isnan(intercept) or (1.0 / intercept < q_final * 1.05):
+            if not self.allow_qmax_fallback:
+                raise KineticsCalculationError(
+                    "Knudsen 宏观拟合失效，且已关闭 Q_final × 1.15 fallback。请手动指定 Q∞ 或检查后期数据。"
+                )
             self._add_warning("Knudsen 宏观拟合失效，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
             qmax = float(q_final * 1.15)
             t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+            qmax_total = float(q_at_t0 + qmax)
             qmax_fallback_used = True
             qmax_method = "fallback_q_final_x_1.15"
         else:
             qmax = float(1.0 / intercept)
             t50 = float(slope * qmax)
+            qmax_total = float(q_at_t0 + qmax)
+            qmax_method = "knudsen_linear_extrapolation"
             if qmax > q_final * 5.0 or not np.isfinite(t50) or t50 <= 0:
+                if not self.allow_qmax_fallback:
+                    raise KineticsCalculationError(
+                        "Knudsen 外推发散，且已关闭 Q_final × 1.15 fallback。请手动指定 Q∞ 或检查后期数据。"
+                    )
                 self._add_warning("Knudsen 外推发散，Qmax 使用 Q_final * 1.15 保守补偿；请谨慎解释 Qmax 与 t50。")
                 qmax = float(q_final * 1.15)
                 t50 = float(t_calc[np.argmin(np.abs(q_calc - qmax / 2.0))] - t0)
+                qmax_total = float(q_at_t0 + qmax)
                 qmax_fallback_used = True
                 qmax_method = "fallback_q_final_x_1.15"
 
+        alpha_valid = np.zeros_like(q_valid, dtype=float)
+        alpha_valid[valid_idx] = q_calc / qmax
         self.data.alpha = np.zeros_like(self.data.time_h, dtype=float)
-        self.data.alpha[mask] = q_calc / qmax
+        self.data.alpha[mask] = alpha_valid
 
         max_len = len(x_all)
         dict_knudsen = {
@@ -282,7 +358,7 @@ class KDSolver:
             "Y_Fit: 1/Q [J^-1*g]": np.pad(y_fit, (0, max_len - len(y_fit)), constant_values=np.nan),
         }
 
-        return qmax, t50, dict_knudsen, qmax_fallback_used, qmax_method, r2_knudsen
+        return qmax, t50, q_at_t0, qmax_total, dict_knudsen, qmax_fallback_used, qmax_method, r2_knudsen
 
     def _find_boundaries(self, k1: float, n: float, k2: float, k3: float, a_peak: float) -> Tuple[float, float]:
         a_scan = np.linspace(0.005, 0.995, 2000)
