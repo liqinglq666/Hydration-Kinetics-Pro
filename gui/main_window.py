@@ -6,12 +6,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFileDialog,
+    QFrame,
     QHBoxLayout,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QScrollArea,
+    QSplitter,
     QTableWidget,
     QVBoxLayout,
     QWidget,
@@ -30,36 +34,90 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Hydration Kinetics Pro - Publication Edition")
-        self.resize(1450, 950)
+        self.resize(1600, 980)
         self.current_data_path = None
         self.cached_hydration_data = None
         self.cached_params = None
         self._init_ui()
+        self._apply_window_styles()
 
     def _init_ui(self) -> None:
         central = QWidget()
+        central.setObjectName("AppRoot")
         self.setCentralWidget(central)
-        layout = QHBoxLayout(central)
+        root_layout = QHBoxLayout(central)
+        root_layout.setContentsMargins(10, 10, 10, 10)
+        root_layout.setSpacing(10)
 
         self.control_panel = ControlPanel()
         self.results_panel = ResultsPanel()
         self.canvas = ScientificCanvas()
 
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 10, 0)
-        left_layout.addWidget(self.control_panel)
-        left_layout.addWidget(self.results_panel)
-        left_layout.addStretch()
+        left_scroll = QScrollArea()
+        left_scroll.setObjectName("SidebarScroll")
+        left_scroll.setWidget(self.control_panel)
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFrameShape(QScrollArea.NoFrame)
+        left_scroll.setMinimumWidth(390)
+        left_scroll.setMaximumWidth(430)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(left_widget)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumWidth(380)
-        scroll_area.setFrameShape(QScrollArea.NoFrame)
+        self.plot_card = QFrame()
+        self.plot_card.setObjectName("WorkspaceCard")
+        plot_layout = QVBoxLayout(self.plot_card)
+        plot_layout.setContentsMargins(12, 10, 12, 12)
+        plot_layout.setSpacing(8)
 
-        layout.addWidget(scroll_area, stretch=2)
-        layout.addWidget(self.canvas, stretch=7)
+        plot_header = QHBoxLayout()
+        plot_title = QLabel("图表工作区")
+        plot_title.setObjectName("CardTitle")
+        plot_caption = QLabel("四通道量热曲线、Knudsen 外推、K-D 分段拟合与机制包络")
+        plot_caption.setObjectName("CardCaption")
+        plot_header.addWidget(plot_title)
+        plot_header.addSpacing(12)
+        plot_header.addWidget(plot_caption)
+        plot_header.addStretch()
+        plot_layout.addLayout(plot_header)
+        plot_layout.addWidget(self.canvas, stretch=1)
+
+        self.results_card = QFrame()
+        self.results_card.setObjectName("WorkspaceCard")
+        results_layout = QVBoxLayout(self.results_card)
+        results_layout.setContentsMargins(12, 10, 12, 12)
+        results_layout.setSpacing(8)
+
+        results_header = QHBoxLayout()
+        results_title = QLabel("结果数据区")
+        results_title.setObjectName("CardTitle")
+        results_caption = QLabel("关键参数、阶段特征、特征峰与指定龄期热量")
+        results_caption.setObjectName("CardCaption")
+        results_header.addWidget(results_title)
+        results_header.addSpacing(12)
+        results_header.addWidget(results_caption)
+        results_header.addStretch()
+        results_layout.addLayout(results_header)
+
+        results_scroll = QScrollArea()
+        results_scroll.setObjectName("ResultsScroll")
+        results_scroll.setWidget(self.results_panel)
+        results_scroll.setWidgetResizable(True)
+        results_scroll.setFrameShape(QScrollArea.NoFrame)
+        results_layout.addWidget(results_scroll, stretch=1)
+
+        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.setObjectName("RightSplitter")
+        right_splitter.addWidget(self.plot_card)
+        right_splitter.addWidget(self.results_card)
+        right_splitter.setSizes([700, 260])
+        right_splitter.setChildrenCollapsible(False)
+
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.setObjectName("MainSplitter")
+        main_splitter.addWidget(left_scroll)
+        main_splitter.addWidget(right_splitter)
+        main_splitter.setSizes([410, 1190])
+        main_splitter.setChildrenCollapsible(False)
+
+        root_layout.addWidget(main_splitter)
 
         self.control_panel.load_requested.connect(self._handle_load)
         self.control_panel.calculate_requested.connect(self._handle_calc)
@@ -78,7 +136,7 @@ class MainWindow(QMainWindow):
             self.current_data_path = Path(path)
             self.cached_hydration_data = None
             self.cached_params = None
-            self.control_panel.update_status(f"文件就绪: {self.current_data_path.name}")
+            self.control_panel.update_status(f"文件就绪：{self.current_data_path.name}")
             self.control_panel.btn_calc.setEnabled(True)
             self.control_panel.btn_extract.setEnabled(False)
             self.control_panel.btn_export_excel.setEnabled(False)
@@ -146,7 +204,7 @@ class MainWindow(QMainWindow):
         self.control_panel.btn_extract.setEnabled(True)
         self.control_panel.btn_export_excel.setEnabled(True)
         self.control_panel.btn_export_images.setEnabled(True)
-        self.control_panel.update_status("解析完成。可以提取数据或导出图表。")
+        self.control_panel.update_status("解析完成，可以提取数据或导出图表。")
 
     def _on_error(self, err_msg: str) -> None:
         self.control_panel.update_status("核心引擎执行异常", is_error=True)
@@ -403,3 +461,40 @@ class MainWindow(QMainWindow):
                 subprocess.Popen(["xdg-open", folder_path])
         except Exception as e:
             logger.warning(f"无法打开资源管理器: {str(e)}")
+
+    def _apply_window_styles(self) -> None:
+        self.setStyleSheet(
+            """
+            QWidget#AppRoot {
+                background-color: #f6f8fb;
+            }
+            QScrollArea#SidebarScroll, QScrollArea#ResultsScroll {
+                background: transparent;
+                border: none;
+            }
+            QFrame#WorkspaceCard {
+                background-color: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+            }
+            QLabel#CardTitle {
+                color: #111827;
+                font-size: 16px;
+                font-weight: 800;
+            }
+            QLabel#CardCaption {
+                color: #6b7280;
+                font-size: 12px;
+            }
+            QSplitter::handle {
+                background: #e5e7eb;
+                border-radius: 2px;
+            }
+            QSplitter::handle:horizontal {
+                width: 6px;
+            }
+            QSplitter::handle:vertical {
+                height: 6px;
+            }
+            """
+        )
