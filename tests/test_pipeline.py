@@ -36,6 +36,9 @@ def test_parser_respects_normalized_mode(tmp_path: Path) -> None:
 
     np.testing.assert_allclose(data.heat_flow_mw_g, df["heat_flow_mw_g"].to_numpy())
     np.testing.assert_allclose(data.cumulative_heat_j_g, df["cumulative_heat_j_g"].to_numpy())
+    assert data.input_mode == "normalized"
+    assert data.detected_unit_mode == "normalized"
+    assert data.sample_mass_g == 5.0
 
 
 def test_parser_respects_total_mode(tmp_path: Path) -> None:
@@ -55,6 +58,18 @@ def test_parser_respects_total_mode(tmp_path: Path) -> None:
 
     np.testing.assert_allclose(data.heat_flow_mw_g, df_norm["heat_flow_mw_g"].to_numpy())
     np.testing.assert_allclose(data.cumulative_heat_j_g, df_norm["cumulative_heat_j_g"].to_numpy())
+    assert data.input_mode == "total"
+    assert data.detected_unit_mode == "total"
+    assert data.sample_mass_g == mass
+
+
+def test_parser_rejects_unit_mode_mismatch(tmp_path: Path) -> None:
+    df = _synthetic_calorimetry_frame()
+    csv_path = tmp_path / "normalized.csv"
+    df.to_csv(csv_path, index=False)
+
+    with pytest.raises(DataParserError, match="表头单位与 GUI 选择不一致"):
+        CalorimetryParser(sample_mass_g=5.0, input_mode="total").parse(csv_path)
 
 
 def test_xls_is_explicitly_rejected(tmp_path: Path) -> None:
@@ -78,6 +93,12 @@ def test_solver_pipeline_on_96h_synthetic_data(tmp_path: Path) -> None:
     assert params.origin_knudsen
     assert params.origin_kd_linear
     assert params.origin_rates
+    assert params.input_mode == "normalized"
+    assert params.detected_unit_mode == "normalized"
+    assert params.qmax_method in {"knudsen_linear_extrapolation", "fallback_q_final_x_1.15"}
+    assert isinstance(params.qmax_fallback_used, bool)
+    assert np.isfinite(params.r2_knudsen)
+    assert isinstance(params.warnings, list)
 
 
 def test_solver_fails_explicitly_on_short_data() -> None:
