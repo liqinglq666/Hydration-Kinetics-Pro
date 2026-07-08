@@ -29,28 +29,29 @@ class ScientificCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # 初始化大尺寸图形对象与 Qt 画布 (适配 2x2 布局)
-        self.fig = Figure(figsize=(14, 10), dpi=120)
+        self.fig = Figure(figsize=(12.5, 8.2), dpi=120)
         self.canvas = FigureCanvas(self.fig)
         self.toolbar = NavigationToolbar(self.canvas, self)
 
         # 跟踪寄生双 Y 轴，用于垃圾回收防止重影
         self.ax_raw_twin = None
 
-        # 构建局部布局
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
 
-        # 恢复经典的 2x2 四图分布阵列
         self.axes = self.fig.subplots(2, 2)
-        self.fig.tight_layout(pad=3.5)
+        self._apply_dashboard_spacing()
+
+    def _apply_dashboard_spacing(self):
+        """Use explicit spacing instead of oversized tight_layout padding for a denser dashboard."""
+        self.fig.subplots_adjust(left=0.075, right=0.94, bottom=0.075, top=0.925, wspace=0.42, hspace=0.42)
 
     def _setup_axes(self):
         """统一刷涂顶刊级别的边框与刻度美学规范，并执行画布垃圾回收"""
 
-        # 彻底销毁旧的寄生双 Y 轴，防止连续计算时红线重叠
         if hasattr(self, 'ax_raw_twin') and self.ax_raw_twin is not None:
             self.ax_raw_twin.remove()
             self.ax_raw_twin = None
@@ -58,14 +59,12 @@ class ScientificCanvas(QWidget):
         for row in self.axes:
             for ax in row:
                 ax.clear()
-                # 开启次级刻度线
                 ax.xaxis.set_minor_locator(AutoMinorLocator())
                 ax.yaxis.set_minor_locator(AutoMinorLocator())
-                # 加粗主刻度与边框，提升学术硬朗感
-                ax.tick_params(which='major', width=1.5, length=6, labelsize=12)
-                ax.tick_params(which='minor', width=1.0, length=4)
+                ax.tick_params(which='major', width=1.4, length=5, labelsize=11)
+                ax.tick_params(which='minor', width=0.9, length=3)
                 for spine in ax.spines.values():
-                    spine.set_linewidth(1.5)
+                    spine.set_linewidth(1.4)
 
     def plot_hydration_data(self, time_h: np.ndarray, heat_flow: np.ndarray, cumulative_heat: np.ndarray,
                             params: KineticsParameters = None):
@@ -78,48 +77,37 @@ class ScientificCanvas(QWidget):
         ax_linear = self.axes[1, 0]
         ax_env = self.axes[1, 1]
 
-        # ==========================================
-        # 图 1 (左上)：基础量热曲线 (双 Y 轴)
-        # ==========================================
-        ax_raw.set_title("1. Calorimetry Raw Data", fontweight='bold', fontsize=14, pad=10)
+        ax_raw.set_title("1. Calorimetry Raw Data", fontweight='bold', fontsize=13, pad=8)
         line1 = ax_raw.plot(time_h, heat_flow, 'k-', linewidth=2.0, label='Heat Flow (mW/g)')
-        ax_raw.set_xlabel('Time (h)', fontweight='bold', fontsize=13)
-        ax_raw.set_ylabel('Heat Flow (mW/g)', fontweight='bold', fontsize=13)
+        ax_raw.set_xlabel('Time (h)', fontweight='bold', fontsize=12)
+        ax_raw.set_ylabel('Heat Flow (mW/g)', fontweight='bold', fontsize=12)
 
-        # 智能 Y 轴缩放：屏蔽前 0.5 小时的初始接触热毛刺
         valid_idx = time_h > 0.5
         if np.any(valid_idx):
             max_hf = np.max(heat_flow[valid_idx])
             min_hf = np.min(heat_flow[valid_idx])
             ax_raw.set_ylim(min_hf - 0.1 * max_hf, max_hf * 1.2)
 
-        # 重建全新的寄生双 Y 轴并保存引用
         self.ax_raw_twin = ax_raw.twinx()
         line2 = self.ax_raw_twin.plot(time_h, cumulative_heat, 'r-', linewidth=2.0, label='Cumulative Heat (J/g)')
-        self.ax_raw_twin.set_ylabel('Cumulative Heat (J/g)', color='red', fontweight='bold', fontsize=13)
-
-        # 严格对齐刻度线颜色
-        self.ax_raw_twin.tick_params(axis='y', colors='red', which='both')
+        self.ax_raw_twin.set_ylabel('Cumulative Heat (J/g)', color='red', fontweight='bold', fontsize=12)
+        self.ax_raw_twin.tick_params(axis='y', colors='red', which='both', labelsize=11)
         self.ax_raw_twin.spines['right'].set_color('red')
-        self.ax_raw_twin.spines['right'].set_linewidth(1.5)
+        self.ax_raw_twin.spines['right'].set_linewidth(1.4)
         self.ax_raw_twin.set_ylim(0, np.max(cumulative_heat) * 1.1)
 
         lines = line1 + line2
         labels = [l.get_label() for l in lines]
-        ax_raw.legend(lines, labels, loc='center right', frameon=True, edgecolor='black', fontsize=11)
+        ax_raw.legend(lines, labels, loc='center right', frameon=True, edgecolor='black', fontsize=10)
 
-        # 如果还没有计算参数，其余三个图显示待机状态
         if params is None:
             for ax in [ax_knudsen, ax_linear, ax_env]:
-                ax.text(0.5, 0.5, "Awaiting Calculation...", ha='center', va='center', fontsize=14, color='gray')
-            self.fig.tight_layout(pad=3.5)
+                ax.text(0.5, 0.5, "Awaiting Calculation...", ha='center', va='center', fontsize=13, color='gray')
+            self._apply_dashboard_spacing()
             self.canvas.draw()
             return
 
-        # ==========================================
-        # 图 2 (右上)：Knudsen 极限热量外推 (注入 R²)
-        # ==========================================
-        ax_knudsen.set_title("2. Knudsen Extrapolation ($Q_{max}$)", fontweight='bold', fontsize=14, pad=10)
+        ax_knudsen.set_title("2. Knudsen Extrapolation ($Q_{max}$)", fontweight='bold', fontsize=13, pad=8)
         if params.origin_knudsen:
             x_all = params.origin_knudsen.get('X_All: 1/(t-t0) [h^-1]', [])
             y_all = params.origin_knudsen.get('Y_All: 1/Q [J^-1*g]', [])
@@ -127,10 +115,8 @@ class ScientificCanvas(QWidget):
             y_fit = params.origin_knudsen.get('Y_Fit: 1/Q [J^-1*g]', [])
 
             ax_knudsen.scatter(x_all, y_all, color='gray', s=12, alpha=0.5, label='Raw Data')
-
             valid_mask = ~np.isnan(x_fit) & ~np.isnan(y_fit)
 
-            # 动态计算并注入 Knudsen 拟合优度 R²
             r2_knudsen_str = ""
             if np.sum(valid_mask) > 2:
                 corr = np.corrcoef(x_fit[valid_mask], y_fit[valid_mask])[0, 1]
@@ -138,21 +124,17 @@ class ScientificCanvas(QWidget):
                     r2_knudsen_str = fr" ($R^2={corr ** 2:.4f}$)"
 
             if np.sum(valid_mask) > 0:
-                ax_knudsen.plot(x_fit[valid_mask], y_fit[valid_mask], 'r-', linewidth=2.5,
+                ax_knudsen.plot(x_fit[valid_mask], y_fit[valid_mask], 'r-', linewidth=2.4,
                                 label=fr'Linear Fit{r2_knudsen_str}')
 
-            ax_knudsen.set_xlabel(r'$1/(t-t_0)\ [h^{-1}]$', fontweight='bold', fontsize=13)
-            ax_knudsen.set_ylabel(r'$1/Q\ [J^{-1}\cdot g]$', fontweight='bold', fontsize=13)
-            ax_knudsen.legend(loc='best', frameon=True, edgecolor='black', fontsize=11)
+            ax_knudsen.set_xlabel(r'$1/(t-t_0)\ [h^{-1}]$', fontweight='bold', fontsize=12)
+            ax_knudsen.set_ylabel(r'$1/Q\ [J^{-1}\cdot g]$', fontweight='bold', fontsize=12)
+            ax_knudsen.legend(loc='best', frameon=True, edgecolor='black', fontsize=10)
 
-        # ==========================================
-        # 图 3 (左下)：K-D 阶段散点寻优拟合 (注入 R²)
-        # ==========================================
-        ax_linear.set_title("3. Integral-Domain Regressions", fontweight='bold', fontsize=14, pad=10)
+        ax_linear.set_title("3. Integral-Domain Regressions", fontweight='bold', fontsize=13, pad=8)
         if params.origin_kd_linear:
             d_lin = params.origin_kd_linear
 
-            # NG 阶段散点与理论直线 (注入 R²)
             x_ng, y_ng = d_lin.get('[NG] X: ln(t-t0)', []), d_lin.get('[NG] Y: ln(-ln(1-α))', [])
             if len(x_ng) > 0:
                 ax_linear.scatter(x_ng, y_ng, s=15, color='limegreen', alpha=0.7,
@@ -160,7 +142,6 @@ class ScientificCanvas(QWidget):
                 y_ng_pred = params.n * x_ng + params.n * np.log(params.k1)
                 ax_linear.plot(x_ng, y_ng_pred, color='darkgreen', linewidth=1.5, linestyle='-', zorder=3)
 
-            # I 阶段散点与理论直线 (注入 R²)
             x_i, y_i = d_lin.get('[I] X: ln(t-t0)', []), d_lin.get('[I] Y: ln(1-(1-α)^1/3)', [])
             if len(x_i) > 0:
                 ax_linear.scatter(x_i, y_i, s=15, color='red', alpha=0.7,
@@ -168,7 +149,6 @@ class ScientificCanvas(QWidget):
                 y_i_pred = x_i + np.log(params.k2)
                 ax_linear.plot(x_i, y_i_pred, color='darkred', linewidth=1.5, linestyle='-', zorder=3)
 
-            # D 阶段散点与理论直线 (注入 R²)
             x_d, y_d = d_lin.get('[D] X: ln(t-t0)', []), d_lin.get('[D] Y: 2*ln(1-(1-α)^1/3)', [])
             if len(x_d) > 0:
                 ax_linear.scatter(x_d, y_d, s=15, color='blue', alpha=0.7,
@@ -176,17 +156,14 @@ class ScientificCanvas(QWidget):
                 y_d_pred = x_d + np.log(params.k3)
                 ax_linear.plot(x_d, y_d_pred, color='darkblue', linewidth=1.5, linestyle='-', zorder=3)
 
-            ax_linear.set_xlabel(r'$\ln(t-t_0)$', fontweight='bold', fontsize=13)
-            ax_linear.set_ylabel(r'Kinetic Functions', fontweight='bold', fontsize=13)
-            ax_linear.legend(loc='best', frameon=True, edgecolor='black', fontsize=11)
+            ax_linear.set_xlabel(r'$\ln(t-t_0)$', fontweight='bold', fontsize=12)
+            ax_linear.set_ylabel(r'Kinetic Functions', fontweight='bold', fontsize=12)
+            ax_linear.legend(loc='best', frameon=True, edgecolor='black', fontsize=10)
 
-        # ==========================================
-        # 图 4 (右下)：动力学速率包络相切线
-        # ==========================================
-        ax_env.set_title("4. Kinetics Mechanism Envelope", fontweight='bold', fontsize=14, pad=10)
+        ax_env.set_title("4. Kinetics Mechanism Envelope", fontweight='bold', fontsize=13, pad=8)
         self._plot_top_tier_envelope(ax_env, params)
 
-        self.fig.tight_layout(pad=3.5)
+        self._apply_dashboard_spacing()
         self.canvas.draw()
 
     def _plot_top_tier_envelope(self, ax, params: KineticsParameters):
@@ -197,31 +174,26 @@ class ScientificCanvas(QWidget):
         f_i = params.origin_rates['Y3: F_I [h^-1]']
         f_d = params.origin_rates['Y4: F_D [h^-1]']
 
-        # 优化线宽，降低虚线视觉干扰，突出黑色实验主线
-        ax.plot(alpha_exp, rate_exp, color='black', linestyle='-', linewidth=2.5, label=r'$d\alpha/dt$', zorder=4)
+        ax.plot(alpha_exp, rate_exp, color='black', linestyle='-', linewidth=2.4, label=r'$d\alpha/dt$', zorder=4)
         ax.plot(alpha_exp, f_ng, color='limegreen', linestyle='-.', linewidth=1.8, label=r'$F_{NG}(\alpha)$', zorder=3)
         ax.plot(alpha_exp, f_i, color='red', linestyle='--', linewidth=1.8, label=r'$F_I(\alpha)$', zorder=3)
         ax.plot(alpha_exp, f_d, color='blue', linestyle=':', linewidth=2.0, label=r'$F_D(\alpha)$', zorder=3)
 
-        # 抬高 Y 轴上限，给图例和标注留出呼吸空间
         y_max = np.max(rate_exp) * 1.35 if len(rate_exp) > 0 else 0.1
 
-        # 交点标记线优化：颜色变浅，字体移到底部防止遮挡曲线
         ax.axvline(x=params.alpha_1, color='gray', linestyle='--', linewidth=1.0, alpha=0.6)
         ax.text(params.alpha_1 + 0.015, y_max * 0.08, fr'$\alpha_1$={params.alpha_1:.4f}',
-                fontsize=11, fontfamily='Times New Roman', color='#333333')
+                fontsize=10, fontfamily='Times New Roman', color='#333333')
 
         ax.axvline(x=params.alpha_2, color='gray', linestyle='--', linewidth=1.0, alpha=0.6)
         ax.text(params.alpha_2 + 0.015, y_max * 0.08, fr'$\alpha_2$={params.alpha_2:.4f}',
-                fontsize=11, fontfamily='Times New Roman', color='#333333')
+                fontsize=10, fontfamily='Times New Roman', color='#333333')
 
         ax.set_xlim(0, 1.0)
         ax.set_ylim(0, y_max)
-        ax.set_xlabel(r'$\alpha$', fontsize=14, fontweight='bold')
-        ax.set_ylabel(r'$d\alpha/dt\ [h^{-1}]$', fontsize=14, fontweight='bold')
-
-        # 图例去背景色，避免遮盖曲线
-        ax.legend(loc='upper right', frameon=False, fontsize=12)
+        ax.set_xlabel(r'$\alpha$', fontsize=12, fontweight='bold')
+        ax.set_ylabel(r'$d\alpha/dt\ [h^{-1}]$', fontsize=12, fontweight='bold')
+        ax.legend(loc='upper right', frameon=False, fontsize=10)
 
     def _save_cropped_axis(self, ax, output_path: Path, extra_axes=None, dpi: int = 600) -> None:
         """Save one subplot as a publication-style cropped image from the dashboard figure."""
