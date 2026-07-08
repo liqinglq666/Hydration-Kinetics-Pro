@@ -75,3 +75,4 @@ class HydrationData:
     input_mode: str = "unknown"
     detected_unit_mode: Optional[str] = None
     sample_mass_g: float = 1.0
+    parser_warnings: List[str] = field(default_factory=list)
