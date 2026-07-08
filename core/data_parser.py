@@ -95,6 +95,7 @@ class CalorimetryParser:
                 cumulative_heat_j_g=cumulative_heat_j_g.to_numpy(dtype=float),
                 input_mode=self.input_mode,
                 detected_unit_mode=detected_mode,
+                sample_mass_g=self.sample_mass_g,
             )
         except DataParserError:
             raise
