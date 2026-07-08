@@ -45,6 +45,7 @@ class CalorimetryParser:
             else:
                 raise DataParserError("不支持的文件格式。当前仅支持 .csv 和 .xlsx；旧式 .xls 请先另存为 .xlsx。")
 
+            detected_mode = self._detect_unit_mode_from_headers(df.columns)
             df = self._normalize_columns(df)
 
             target_cols = ["time_h", "heat_flow", "cumulative_heat"]
@@ -53,6 +54,13 @@ class CalorimetryParser:
                 raise DataParserError(
                     "数据表缺少关键列: "
                     f"{', '.join(missing_cols)}。请确认表头包含时间、热流和累计热量。"
+                )
+
+            if detected_mode and detected_mode != self.input_mode:
+                raise DataParserError(
+                    "表头单位与 GUI 选择不一致："
+                    f"表头看起来是 {detected_mode} 数据，但当前选择为 {self.input_mode}。"
+                    "请在左侧“输入数据单位”中重新选择，避免 mW/g、J/g 被二次除以样品质量。"
                 )
 
             for col in target_cols:
@@ -163,6 +171,31 @@ class CalorimetryParser:
                     break
 
         return df.rename(columns=rename_map)
+
+    @staticmethod
+    def _detect_unit_mode_from_headers(columns) -> InputMode | None:
+        normalized_hits = 0
+        total_hits = 0
+
+        for col in columns:
+            raw = str(col).strip().lower()
+            key = CalorimetryParser._column_key(raw)
+            looks_like_heat = any(token in key for token in ("heat", "flow", "power", "热流", "放热", "热量", "累计", "累积"))
+            if not looks_like_heat:
+                continue
+
+            if any(token in raw for token in ("mw/g", "mw g-1", "mw·g-1", "mw g^-1", "j/g", "j g-1", "j·g-1", "j g^-1")):
+                normalized_hits += 1
+            elif any(token in key for token in ("mwg", "jg")):
+                normalized_hits += 1
+            elif any(token in key for token in ("mw", "j")):
+                total_hits += 1
+
+        if normalized_hits > 0:
+            return "normalized"
+        if total_hits >= 2:
+            return "total"
+        return None
 
     @staticmethod
     def _matches_column(key: str, aliases: set[str]) -> bool:
