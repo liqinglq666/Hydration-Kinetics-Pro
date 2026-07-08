@@ -45,8 +45,17 @@ class KineticsParameters:
     input_mode: str = "unknown"
     detected_unit_mode: Optional[str] = None
     sample_mass_g: float = 1.0
+
+    t0_method: str = "auto_min_heat_flow"
+    manual_t0_h: Optional[float] = None
+
+    q_at_t0_j_g: float = 0.0
+    qmax_total_j_g: float = 0.0
+    manual_qmax_total_j_g: Optional[float] = None
     qmax_method: str = "unknown"
     qmax_fallback_used: bool = False
+    qmax_fallback_allowed: bool = True
+
     warnings: List[str] = field(default_factory=list)
 
     # ==========================================
