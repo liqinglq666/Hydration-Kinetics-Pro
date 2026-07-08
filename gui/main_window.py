@@ -118,7 +118,7 @@ class MainWindow(QMainWindow):
         )
         self.worker.progress.connect(self.control_panel.update_status)
         self.worker.data_loaded.connect(self._on_data_loaded)
-        self.worker.finished.connect(self._on_finished)
+        self.worker.analysis_finished.connect(self._on_finished)
         self.worker.error.connect(self._on_error)
         self.worker.start()
 
