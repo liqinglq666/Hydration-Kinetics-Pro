@@ -95,10 +95,52 @@ def test_solver_pipeline_on_96h_synthetic_data(tmp_path: Path) -> None:
     assert params.origin_rates
     assert params.input_mode == "normalized"
     assert params.detected_unit_mode == "normalized"
+    assert params.t0_method == "auto_min_heat_flow"
     assert params.qmax_method in {"knudsen_linear_extrapolation", "fallback_q_final_x_1.15"}
     assert isinstance(params.qmax_fallback_used, bool)
     assert np.isfinite(params.r2_knudsen)
     assert isinstance(params.warnings, list)
+
+
+def test_solver_accepts_manual_t0_and_manual_total_qmax(tmp_path: Path) -> None:
+    df = _synthetic_calorimetry_frame()
+    csv_path = tmp_path / "synthetic_manual.csv"
+    df.to_csv(csv_path, index=False)
+
+    data = CalorimetryParser(sample_mass_g=1.0, input_mode="normalized").parse(csv_path)
+    manual_t0 = 2.0
+    manual_qinf_total = float(df["cumulative_heat_j_g"].max() * 1.20)
+    q_at_t0 = float(np.interp(manual_t0, data.time_h, data.cumulative_heat_j_g))
+
+    params = KDSolver(
+        data,
+        expected_peaks=1,
+        manual_t0_h=manual_t0,
+        manual_qmax_total_j_g=manual_qinf_total,
+        allow_qmax_fallback=False,
+    ).execute_pipeline()
+
+    assert params.t0_method == "manual"
+    assert params.manual_t0_h == manual_t0
+    assert params.qmax_method == "manual_total_cumulative_heat_qinf"
+    assert params.qmax_fallback_used is False
+    assert params.qmax_fallback_allowed is False
+    assert params.manual_qmax_total_j_g == manual_qinf_total
+    assert params.qmax_total_j_g == pytest.approx(manual_qinf_total)
+    assert params.q_at_t0_j_g == pytest.approx(q_at_t0)
+    assert params.qmax_j_g == pytest.approx(manual_qinf_total - q_at_t0)
+
+
+def test_solver_rejects_invalid_manual_qmax(tmp_path: Path) -> None:
+    df = _synthetic_calorimetry_frame()
+    csv_path = tmp_path / "synthetic_bad_qmax.csv"
+    df.to_csv(csv_path, index=False)
+
+    data = CalorimetryParser(sample_mass_g=1.0, input_mode="normalized").parse(csv_path)
+    bad_qinf_total = float(df["cumulative_heat_j_g"].max() * 0.80)
+
+    with pytest.raises(KineticsCalculationError, match="手动 Q∞ 不足"):
+        KDSolver(data, manual_t0_h=2.0, manual_qmax_total_j_g=bad_qinf_total).execute_pipeline()
 
 
 def test_solver_fails_explicitly_on_short_data() -> None:
