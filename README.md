@@ -110,8 +110,8 @@ flowchart LR
 
 | Mode | Meaning | Program behavior |
 |---|---|---|
-| `total` | 总热流 $mW$、总累计热量 $J$ | 按有效质量归一化为 $mW/g$、$J/g$ |
-| `normalized` | 已归一化热流 $mW/g$、累计热量 $J/g$ | 不再除以质量，直接进入后续计算 |
+| `total` | total heat flow mW and cumulative heat J | 按有效质量归一化为 mW/g、J/g |
+| `normalized` | normalized heat flow mW/g and cumulative heat J/g | 不再除以质量，直接进入后续计算 |
 
 这里的有效质量建议使用：
 
@@ -139,26 +139,15 @@ time_h,heat_flow_mw,cumulative_heat_j
 1.0,1.420,4.250
 ```
 
-当前支持：
-
-```text
-.csv
-.xlsx
-```
-
-旧式 `.xls` 暂不支持，建议先另存为 `.xlsx`。
+当前支持 `.csv` 与 `.xlsx`。旧式 `.xls` 暂不支持，建议先另存为 `.xlsx`。
 
 软件会尝试根据表头识别单位模式。若表头和 GUI 选择不一致，程序只弹出提醒，不强制中断。最终计算以 GUI 中用户选择的单位模式为准，并将提醒写入 `QC_Parser_Warnings`，方便后期复查。
 
 ---
 
-## 4. Definition of $t_0$
+## 4. Definition of t0
 
-在 K-D 模型中，$t_0$ 不是简单的实验开始时间。我把它理解为主水化动力学过程的表观起算点：
-
-$$
-t_0 = \text{the apparent starting time of the main hydration kinetic process}
-$$
+在 K-D 模型中，$t_0$ 不是简单的实验开始时间。我把它理解为主水化动力学过程的表观起算点，即 $t_0 = \text{the apparent starting time of the main hydration kinetic process}$。
 
 等温量热曲线早期常常包含初始溶解峰、装样扰动和仪器温度平衡过程。如果直接从 0 h 开始计算，可能会把不属于主加速水化过程的热信号引入模型。
 
@@ -166,8 +155,8 @@ $$
 
 | Mode | Description | Suggested use |
 |---|---|---|
-| Auto $t_0$ | 自动寻找诱导期低谷 | 普通 OPC 或主峰清晰数据 |
-| Manual $t_0$ | 用户根据曲线手动指定 | 掺合料、外加剂、海水、PAM 等复杂体系 |
+| Auto t0 | 自动寻找诱导期低谷 | 普通 OPC 或主峰清晰数据 |
+| Manual t0 | 用户根据曲线手动指定 | 掺合料、外加剂、海水、PAM 等复杂体系 |
 
 我自己的判断规则是：
 
@@ -186,36 +175,24 @@ t0 之后累计热量应持续增长；
 
 等温量热直接测到的是热流和累计热量，而 K-D 模型需要的是水化程度 $\alpha$。因此，需要先建立热量信号与表观水化度之间的关系。
 
-我在软件中采用的定义为：
+我在软件中采用的定义为：$\alpha_{app}(t)=\frac{Q(t)-Q(t_0)}{Q_{max,eff}}$。
 
-$$
-\alpha_{app}(t)=\frac{Q(t)-Q(t_0)}{Q_{max,eff}}
-$$
-
-其中：
-
-$$
-Q_{max,eff}=Q_{\infty}-Q(t_0)
-$$
+其中，有效极限放热量定义为：$Q_{max,eff}=Q_{\infty}-Q(t_0)$。
 
 这里我刻意区分两个概念。
 
 | Symbol | Meaning |
 |---|---|
-| $Q_{\infty}$ | 从实验起点计的总极限累计放热量 |
-| $Q_{max,eff}$ | 从 $t_0$ 之后计的有效极限放热量 |
+| Q∞ | 从实验起点计的总极限累计放热量 |
+| Qmax_eff | 从 t0 之后计的有效极限放热量 |
 
-如果用户手动输入 $Q_{\infty}$，软件不会直接把它当作 K-D 分母，而是自动扣除 $Q(t_0)$：
-
-$$
-Q_{max,eff}=Q_{\infty}-Q(t_0)
-$$
+如果用户手动输入 $Q_{\infty}$，软件不会直接把它当作 K-D 分母，而是自动扣除 $Q(t_0)$，即 $Q_{max,eff}=Q_{\infty}-Q(t_0)$。
 
 这样做更符合实验习惯。因为从长龄期量热、理论水化热或文献中得到的通常是总累计极限热量 $Q_{\infty}$，而不是从 $t_0$ 开始重新定义后的有效热量。
 
 ---
 
-## 6. $Q_{max}$ Estimation Strategy
+## 6. Qmax Estimation Strategy
 
 $Q_{max}$ 是整个计算中最敏感的锚点之一。因为它进入 $\alpha$ 的分母，进而影响 $K_1$、$K_2$、$K_3$、$\alpha_1$、$\alpha_2$ 等所有后续参数。
 
@@ -225,45 +202,21 @@ $Q_{max}$ 是整个计算中最敏感的锚点之一。因为它进入 $\alpha$ 
 Manual Q∞ > Knudsen linear extrapolation > Qfinal × 1.15 fallback
 ```
 
-### 6.1 Manual $Q_{\infty}$
+### 6.1 Manual Q∞
 
 如果有长龄期累计热量、理论极限放热量或可靠文献值，建议手动指定 $Q_{\infty}$。这在论文分析中通常比盲目依赖短龄期外推更稳。
 
 ### 6.2 Knudsen Asymptotic Extrapolation
 
-当未手动指定 $Q_{\infty}$ 时，软件尝试采用 Knudsen 外推：
+当未手动指定 $Q_{\infty}$ 时，软件尝试采用 Knudsen 外推，其基本形式为 $\frac{1}{Q}=\frac{1}{Q_{max}}+\frac{t_{50}}{Q_{max}}\cdot\frac{1}{t-t_0}$。
 
-$$
-\frac{1}{Q}
-=
-\frac{1}{Q_{max}}
-+
-\frac{t_{50}}{Q_{max}}\cdot\frac{1}{t-t_0}
-$$
-
-若后期数据在 $1/Q$ 与 $1/(t-t_0)$ 坐标下具有线性关系，则：
-
-$$
-Q_{max}=\frac{1}{intercept}
-$$
-
-并且：
-
-$$
-t_{50}=slope \cdot Q_{max}
-$$
+若后期数据在 $1/Q$ 与 $1/(t-t_0)$ 坐标下具有线性关系，则 $Q_{max}=\frac{1}{intercept}$，同时 $t_{50}=slope\cdot Q_{max}$。
 
 这个图的意义不只是拟合一条直线，而是检查后期降速阶段是否能够支持一个稳定的极限放热量估计。
 
-### 6.3 Fallback $Q_{final}\times1.15$
+### 6.3 Fallback Qfinal × 1.15
 
-如果 Knudsen 外推失败，软件可以使用：
-
-$$
-Q_{max}=1.15Q_{final}
-$$
-
-作为保守 fallback。
+如果 Knudsen 外推失败，软件可以使用 $Q_{max}=1.15Q_{final}$ 作为保守 fallback。
 
 但我把 fallback 设计成低置信度策略。它可以用于快速筛查和 smoke test，但不建议作为论文核心参数的高置信度来源。只要触发 fallback，软件都会在 Excel 中记录 warning。
 
@@ -289,49 +242,15 @@ a kinetic decomposition of the calorimetric signal
 
 ### 7.1 NG Stage: Nucleation and Growth
 
-NG 阶段采用 Avrami 型积分形式：
+NG 阶段采用 Avrami 型积分形式：$[-\ln(1-\alpha)]^{1/n}=K_1^{\prime}(t-t_0)$。
 
-$$
-[-\ln(1-\alpha)]^{1/n}=K_1'(t-t_0)
-$$
+两边取对数后得到：$\ln[-\ln(1-\alpha)]=n\ln(t-t_0)+n\ln K_1^{\prime}$。
 
-两边取对数：
+令 $Y_{NG}=\ln[-\ln(1-\alpha)]$，$X=\ln(t-t_0)$，则线性化形式为 $Y_{NG}=nX+n\ln K_1^{\prime}$。
 
-$$
-\ln[-\ln(1-\alpha)]
-=
-n\ln(t-t_0)+n\ln K_1'
-$$
+因此，线性拟合斜率为 $n$，截距为 $n\ln K_1^{\prime}$，并可反算 $K_1^{\prime}=\exp(intercept/n)$。
 
-令：
-
-$$
-Y_{NG}=\ln[-\ln(1-\alpha)]
-$$
-
-$$
-X=\ln(t-t_0)
-$$
-
-则：
-
-$$
-Y_{NG}=nX+n\ln K_1'
-$$
-
-因此，线性拟合斜率为 $n$，截距为 $n\ln K_1'$。进一步可得：
-
-$$
-K_1'=\exp\left(\frac{intercept}{n}\right)
-$$
-
-对应的速率函数为：
-
-$$
-F_{NG}(\alpha)
-=
-K_1 n(1-\alpha)[-\ln(1-\alpha)]^{\frac{n-1}{n}}
-$$
+对应的速率函数为 $F_{NG}(\alpha)=K_1n(1-\alpha)[-\ln(1-\alpha)]^{(n-1)/n}$。
 
 这里的 $n$ 不应被机械解释为严格几何维度，而更适合作为宏观热流信号中的表观成核-生长指数。
 
@@ -339,100 +258,27 @@ $$
 
 ### 7.2 I Stage: Phase Boundary Reaction
 
-I 阶段采用相边界反应形式：
+I 阶段采用相边界反应形式：$1-(1-\alpha)^{1/3}=K_2^{\prime}(t-t_0)$。
 
-$$
-1-(1-\alpha)^{1/3}=K_2'(t-t_0)
-$$
+取对数后得到：$\ln[1-(1-\alpha)^{1/3}]=\ln(t-t_0)+\ln K_2^{\prime}$。
 
-取对数：
-
-$$
-\ln[1-(1-\alpha)^{1/3}]
-=
-\ln(t-t_0)+\ln K_2'
-$$
-
-令：
-
-$$
-Y_I=\ln[1-(1-\alpha)^{1/3}]
-$$
-
-$$
-X=\ln(t-t_0)
-$$
-
-则：
-
-$$
-Y_I=X+\ln K_2'
-$$
-
-所以：
-
-$$
-K_2'=\exp(intercept)
-$$
+令 $Y_I=\ln[1-(1-\alpha)^{1/3}]$，$X=\ln(t-t_0)$，则线性化形式为 $Y_I=X+\ln K_2^{\prime}$，并可反算 $K_2^{\prime}=\exp(intercept)$。
 
 在代码中，我采用斜率固定为 1 的方式估计 $K_2$。这样做是为了避免 I 阶段数据窗口较窄时出现过度自由拟合。相比让斜率任意漂移，固定理论斜率更能保留 K-D 模型本身的物理约束。
 
-对应速率函数为：
-
-$$
-F_I(\alpha)
-=
-3K_2(1-\alpha)^{2/3}
-$$
+对应速率函数为 $F_I(\alpha)=3K_2(1-\alpha)^{2/3}$。
 
 ---
 
 ### 7.3 D Stage: Diffusion Control
 
-D 阶段采用扩散控制形式：
+D 阶段采用扩散控制形式：$[1-(1-\alpha)^{1/3}]^2=K_3^{\prime}(t-t_0)$。
 
-$$
-[1-(1-\alpha)^{1/3}]^2=K_3'(t-t_0)
-$$
+取对数后得到：$2\ln[1-(1-\alpha)^{1/3}]=\ln(t-t_0)+\ln K_3^{\prime}$。
 
-取对数：
+令 $Y_D=2\ln[1-(1-\alpha)^{1/3}]$，$X=\ln(t-t_0)$，则线性化形式为 $Y_D=X+\ln K_3^{\prime}$，并可反算 $K_3^{\prime}=\exp(intercept)$。
 
-$$
-2\ln[1-(1-\alpha)^{1/3}]
-=
-\ln(t-t_0)+\ln K_3'
-$$
-
-令：
-
-$$
-Y_D=2\ln[1-(1-\alpha)^{1/3}]
-$$
-
-$$
-X=\ln(t-t_0)
-$$
-
-则：
-
-$$
-Y_D=X+\ln K_3'
-$$
-
-因此：
-
-$$
-K_3'=\exp(intercept)
-$$
-
-对应速率函数为：
-
-$$
-F_D(\alpha)
-=
-\frac{3K_3(1-\alpha)^{2/3}}
-{2[1-(1-\alpha)^{1/3}]}
-$$
+对应速率函数为 $F_D(\alpha)=\frac{3K_3(1-\alpha)^{2/3}}{2[1-(1-\alpha)^{1/3}]}$。
 
 D 阶段的意义在于描述后期水化中由于产物层增厚、孔结构细化和传质路径延长导致的扩散受限行为。但在实际水泥基材料中，扩散控制并不是突然出现的，而是逐步增强的。因此软件输出的 $\alpha_2$ 更适合作为表观转换指标，而不是绝对微观分界点。
 
@@ -440,12 +286,12 @@ D 阶段的意义在于描述后期水化中由于产物层增厚、孔结构细
 
 ## 8. Mechanism Transition Indices
 
-在得到 $F_{NG}$、$F_I$、$F_D$ 之后，软件会重构动力学率包络线，并估计两个机制转换指标：
+在得到 $F_{NG}$、$F_I$、$F_D$ 之后，软件会重构动力学率包络线，并估计两个机制转换指标。
 
 | Index | Interpretation |
 |---|---|
-| $\alpha_1$ | NG 阶段向后续控制阶段转变的表观边界 |
-| $\alpha_2$ | D 阶段开始占主导的表观边界 |
+| alpha_1 | NG 阶段向后续控制阶段转变的表观边界 |
+| alpha_2 | D 阶段开始占主导的表观边界 |
 
 我更倾向于把 $\alpha_1$、$\alpha_2$ 称为：
 
@@ -459,33 +305,11 @@ K-D model transition indices
 
 ## 9. Experimental Rate and Model Rate Envelope
 
-热流可以进一步转化为表观反应速率：
+热流可以进一步转化为表观反应速率：$\frac{d\alpha}{dt}=\frac{1}{Q_{max,eff}}\frac{dQ}{dt}$。
 
-$$
-\frac{d\alpha}{dt}
-=
-\frac{1}{Q_{max,eff}}\frac{dQ}{dt}
-$$
+由于热流单位为 mW/g，而 $1\ mW=10^{-3}\ J/s$，所以换算到 J/(g·h) 时需要乘以 3.6。
 
-由于热流单位为 $mW/g$，而：
-
-$$
-1\ mW = 10^{-3}\ J/s
-$$
-
-所以换算到 $J/(g\cdot h)$ 时：
-
-$$
-heat\ flow\ (mW/g)\times 3.6
-$$
-
-因此软件中实验表观速率为：
-
-$$
-\left(\frac{d\alpha}{dt}\right)_{exp}
-=
-\frac{heat\ flow\ (mW/g)\times 3.6}{Q_{max,eff}}
-$$
+因此软件中实验表观速率为 $(d\alpha/dt)_{exp}=\frac{heat\ flow\ (mW/g)\times 3.6}{Q_{max,eff}}$。
 
 这一步很关键。它把原始热流曲线和 K-D 理论速率函数放到了同一个 $\alpha-d\alpha/dt$ 坐标系中，使得 $F_{NG}$、$F_I$、$F_D$ 的控制关系可以被直接可视化。
 
@@ -497,9 +321,9 @@ $$
 
 | 出版图谱目标 | 映射工作表 Sheet | OriginLab 渲染逻辑 | 学术论证意义 |
 |---|---|---|---|
-| Knudsen 渐近外推 | `1_Knudsen拟合` | 选中 `X_All / Y_All` 作原始散点；选中 `X_Fit / Y_Fit` 进行 Linear Fit | 截距倒数映射体系极限水化热潜力 $Q_{max}$，并对宏观降速期进行全局检查 |
-| K-D 机制积分域验证 | `2_KD分段散点拟合` | 分别选中 NG、I、D 的积分域散点列进行 Linear Fit | 直接呈现各机制区间的线性一致性和 $R^2$，避免只给参数不展示拟合依据 |
-| 动力学率包络演化 | `3_理论速率包络线` | 以 $\alpha$ 为横轴，以实验速率和理论速率函数矩阵为纵轴作线图 | 展示 $F_{NG}$、$F_I$、$F_D$ 在 $\alpha_1$、$\alpha_2$ 附近的控制接力和机制跃迁趋势 |
+| Knudsen 渐近外推 | `1_Knudsen拟合` | 选中 `X_All / Y_All` 作原始散点；选中 `X_Fit / Y_Fit` 进行 Linear Fit | 截距倒数映射体系极限水化热潜力 Qmax，并对宏观降速期进行全局检查 |
+| K-D 机制积分域验证 | `2_KD分段散点拟合` | 分别选中 NG、I、D 的积分域散点列进行 Linear Fit | 直接呈现各机制区间的线性一致性和 R²，避免只给参数不展示拟合依据 |
+| 动力学率包络演化 | `3_理论速率包络线` | 以 alpha 为横轴，以实验速率和理论速率函数矩阵为纵轴作线图 | 展示 F_NG、F_I、F_D 在 alpha_1、alpha_2 附近的控制接力和机制跃迁趋势 |
 
 这三类图谱对应了完整的逻辑链：
 
@@ -521,13 +345,13 @@ K-D 参数是否来自真实线性区
 
 | Sheet | Content | Why it matters |
 |---|---|---|
-| `QC_Traceability` | 单位模式、$t_0$ 来源、$Q(t_0)$、$Q_{\infty}$、Qmax 来源、fallback 状态 | 追溯关键计算锚点 |
-| `QC_R2_Review` | Knudsen、NG、I、D 的 $R^2$ 与质量判读 | 判断拟合结果是否适合进入论文讨论 |
+| `QC_Traceability` | 单位模式、t0 来源、Q(t0)、Q∞、Qmax 来源、fallback 状态 | 追溯关键计算锚点 |
+| `QC_R2_Review` | Knudsen、NG、I、D 的 R² 与质量判读 | 判断拟合结果是否适合进入论文讨论 |
 | `QC_Warnings` | solver 中记录的 warning | 防止 fallback 或异常数据被隐藏 |
 | `QC_Parser_Warnings` | 表头单位和 GUI 选择不一致等提醒 | 记录数据预处理风险 |
 | `Tab5_Knudsen` | Qmax、t50、Knudsen 方程和 Qmax 来源 | 对应极限放热量估计 |
-| `Tab6_KD_Eqs` | NG、I、D 三阶段拟合方程与 $R^2$ | 对应积分域验证 |
-| `Tab7_KD_Params` | $n$、$K_1$、$K_2$、$K_3$、$\alpha_1$、$\alpha_2$ | 对应论文主参数表 |
+| `Tab6_KD_Eqs` | NG、I、D 三阶段拟合方程与 R² | 对应积分域验证 |
+| `Tab7_KD_Params` | n、K1、K2、K3、alpha_1、alpha_2 | 对应论文主参数表 |
 | `水化阶段特征` | 休眠期、加速期、减速期 | 对应宏观阶段划分 |
 | `放热峰特征提取` | 自动识别放热峰 | 对应热流曲线特征 |
 | `特定龄期热量` | 指定龄期累计热量 | 对应常用龄期比较指标 |
@@ -630,9 +454,9 @@ examples/sample_96h_calorimetry_normalized.csv
 
 1. 数据不足时不返回默认 K-D 参数；
 2. Knudsen 外推失败时明确标记 fallback；
-3. 手动 $t_0$ 和手动 $Q_{\infty}$ 会写入 QC 表；
+3. 手动 t0 和手动 Q∞ 会写入 QC 表；
 4. 单位模式不一致只提醒，但会记录 warning；
-5. $R^2$ 进入 Excel，但不把它当作唯一判断标准；
+5. R² 进入 Excel，但不把它当作唯一判断标准；
 6. OriginLab 源数据单独导出，避免论文图谱不可复现。
 
 这些设计的目的不是让软件显得复杂，而是让动力学分析更像一个可以被答辩、审稿和复算的研究流程。
@@ -650,7 +474,7 @@ examples/sample_96h_calorimetry_normalized.csv
 
 论文中可以这样描述本工具或方法流程：
 
-> 本文基于等温量热曲线构建表观水化动力学分析流程。首先将热流与累计放热量统一归一化为 $mW/g$ 与 $J/g$，并以诱导期结束时间 $t_0$ 作为动力学起算点。随后根据手动指定的 $Q_{\infty}$、Knudsen 外推或保守 fallback 估计极限放热量 $Q_{max}$，并定义 $t_0$ 后表观水化程度 $\alpha_{app}=[Q(t)-Q(t_0)]/Q_{max,eff}$。进一步基于 Krstulovic-Dabic 模型，将水化过程划分为成核-晶体生长、相边界反应和扩散控制三个表观阶段，通过积分形式线性化拟合获得 $n$、$K_1$、$K_2$ 和 $K_3$。同时，基于实验表观速率与理论速率函数构建动力学率包络线，以 $\alpha_1$ 和 $\alpha_2$ 表征 K-D 模型下的机制转换指标。需要指出的是，该方法基于宏观放热信号反演动力学参数，所得结果反映 apparent hydration kinetics，而非单一水化产物的直接生成速率。
+> 本文基于等温量热曲线构建表观水化动力学分析流程。首先将热流与累计放热量统一归一化为 mW/g 与 J/g，并以诱导期结束时间 t0 作为动力学起算点。随后根据手动指定的 Q∞、Knudsen 外推或保守 fallback 估计极限放热量 Qmax，并定义 t0 后表观水化程度 alpha_app = [Q(t)-Q(t0)] / Qmax_eff。进一步基于 Krstulovic-Dabic 模型，将水化过程划分为成核-晶体生长、相边界反应和扩散控制三个表观阶段，通过积分形式线性化拟合获得 n、K1、K2 和 K3。同时，基于实验表观速率与理论速率函数构建动力学率包络线，以 alpha_1 和 alpha_2 表征 K-D 模型下的机制转换指标。需要指出的是，该方法基于宏观放热信号反演动力学参数，所得结果反映 apparent hydration kinetics，而非单一水化产物的直接生成速率。
 
 ---
 
