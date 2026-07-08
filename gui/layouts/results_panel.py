@@ -220,7 +220,8 @@ class ResultsPanel(QWidget):
         self.table_heat.setRowCount(len(times))
         for i in range(len(times)):
             item_t = QTableWidgetItem(f"{times[i]:.2f}")
-            item_h = QTableWidgetItem(f"{heats[i]:.2f}")
+            heat_text = "超出数据范围" if not np.isfinite(heats[i]) else f"{heats[i]:.2f}"
+            item_h = QTableWidgetItem(heat_text)
             item_t.setFlags(item_t.flags() & ~Qt.ItemIsEditable)
             item_h.setFlags(item_h.flags() & ~Qt.ItemIsEditable)
             self.table_heat.setItem(i, 0, item_t)
