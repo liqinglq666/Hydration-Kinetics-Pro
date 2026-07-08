@@ -462,12 +462,6 @@ pip install -r requirements.txt
 python main.py
 ```
 
-运行测试：
-
-```bash
-python -m pytest -q
-```
-
 ---
 
 ## 15. Example Dataset
@@ -535,11 +529,10 @@ Hydration-Kinetics-Pro
 │       └── results_panel.py
 ├── examples
 │   └── sample_96h_calorimetry_normalized.csv
-├── tests
-│   └── test_pipeline.py
-├── requirements.txt
 ├── main.py
-└── README.md
+├── requirements.txt
+├── README.md
+└── LICENSE
 ```
 
 ---
