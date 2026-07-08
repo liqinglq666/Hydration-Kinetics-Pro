@@ -16,6 +16,7 @@ class KDSolver:
     1. 不在数据不足时返回看似真实的默认参数。
     2. 拟合失败必须显式报错，避免用户把 fallback 当作论文结果。
     3. 允许 Knudsen 理论热量补偿，但所有 K-D 分段参数必须来自有效数据窗口。
+    4. K-D 分段窗口采用“物理窗口优先 + 数据驱动扩展”，避免窄窗口误伤平滑曲线。
     """
 
     def __init__(self, data: HydrationData, expected_peaks: int = 1) -> None:
@@ -292,6 +293,54 @@ class KDSolver:
 
         return alpha_1, alpha_2
 
+    def _stage_mask(
+        self,
+        alpha: np.ndarray,
+        lower: float,
+        upper: float,
+        fallback_lower: float,
+        fallback_upper: float,
+        center: float,
+        min_points: int,
+        label: str,
+    ) -> np.ndarray:
+        """Select a fitting window without fabricating parameters.
+
+        The solver first tries a physically motivated alpha interval. If that interval is too narrow for a
+        particular heat-release curve, it expands to a broader fallback interval. If that still does not
+        provide enough points, it selects the nearest real alpha points around the intended center and logs
+        a warning. This keeps the fit data-derived while avoiding default constants.
+        """
+        alpha_max = float(np.nanmax(alpha))
+        candidates = [
+            (max(0.01, lower), min(0.97, upper)),
+            (max(0.01, fallback_lower), min(0.97, fallback_upper)),
+            (max(0.01, alpha_max * 0.20), min(0.97, alpha_max * 0.92)),
+        ]
+
+        for lo, hi in candidates:
+            if hi <= lo:
+                continue
+            mask = (alpha >= lo) & (alpha <= hi)
+            if int(np.sum(mask)) >= min_points:
+                return mask
+
+        valid = np.where((alpha > 0.01) & (alpha < min(0.97, alpha_max * 0.97)))[0]
+        if len(valid) < min_points:
+            raise KineticsCalculationError(f"{label} 阶段有效点不足，无法拟合对应动力学参数。")
+
+        center = float(np.clip(center, np.nanmin(alpha[valid]), np.nanmax(alpha[valid])))
+        nearest = valid[np.argsort(np.abs(alpha[valid] - center))[:min_points]]
+        mask = np.zeros_like(alpha, dtype=bool)
+        mask[np.sort(nearest)] = True
+        logger.warning(f"{label} 阶段物理窗口点数不足，已使用邻近 alpha 点扩展拟合窗口。")
+        return mask
+
+    def _safe_r2(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
+        ss_res = float(np.sum((y_true - y_pred) ** 2))
+        ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
+        return float(max(0.0, 1.0 - (ss_res / ss_tot)) if ss_tot > 0 else 0.0)
+
     def _integral_domain_linear_fitting(self, t0: float, t_peak: float, qmax: float) -> Tuple[
         float, float, float, float, float, float, float, float, float, dict
     ]:
@@ -307,12 +356,16 @@ class KDSolver:
         alpha_max = float(alpha.max())
         min_stage_points = 6
 
-        m_ng = (alpha >= 0.02) & (alpha <= a_peak * 0.95)
-        if np.sum(m_ng) < min_stage_points:
-            m_ng = (alpha >= 0.02) & (alpha <= min(0.35, alpha_max * 0.55))
-        if np.sum(m_ng) < min_stage_points:
-            raise KineticsCalculationError("NG 阶段有效点不足，无法拟合 Avrami-Erofeev 成核生长参数。")
-
+        m_ng = self._stage_mask(
+            alpha=alpha,
+            lower=0.02,
+            upper=max(0.03, a_peak * 0.95),
+            fallback_lower=0.02,
+            fallback_upper=min(0.35, alpha_max * 0.55),
+            center=max(0.04, a_peak * 0.50),
+            min_points=min_stage_points,
+            label="NG",
+        )
         x_ng = np.log(t_delta[m_ng])
         y_ng = np.log(-np.log(1.0 - alpha[m_ng]))
         slope_ng, int_ng, r_val, _, _ = linregress(x_ng, y_ng)
@@ -322,41 +375,43 @@ class KDSolver:
         dict_linear["[NG] X: ln(t-t0)"], dict_linear["[NG] Y: ln(-ln(1-α))"] = x_ng, y_ng
 
         a_i_start = max(a_peak, 0.05)
-        a_i_end = min(a_peak + 0.15, alpha_max * 0.60)
-        if a_i_end <= a_i_start:
-            a_i_start = max(0.08, alpha_max * 0.35)
-            a_i_end = alpha_max * 0.65
-        m_i = (alpha >= a_i_start) & (alpha <= a_i_end)
-        if np.sum(m_i) < min_stage_points:
-            raise KineticsCalculationError("I 阶段有效点不足，无法拟合相界反应参数 K2。")
-
+        a_i_end = min(a_peak + 0.18, alpha_max * 0.72)
+        m_i = self._stage_mask(
+            alpha=alpha,
+            lower=a_i_start,
+            upper=a_i_end,
+            fallback_lower=max(0.06, alpha_max * 0.25),
+            fallback_upper=max(0.12, alpha_max * 0.72),
+            center=min(alpha_max * 0.55, max(a_peak, alpha_max * 0.40)),
+            min_points=min_stage_points,
+            label="I",
+        )
         x_i = np.log(t_delta[m_i])
         y_i = np.log(1.0 - (1.0 - alpha[m_i]) ** (1.0 / 3.0))
-        int_i = np.mean(y_i - x_i)
+        int_i = float(np.mean(y_i - x_i))
         k2 = float(np.clip(np.exp(int_i), 1e-7, 1.0))
         y_pred_i = x_i + int_i
-        ss_res_i = np.sum((y_i - y_pred_i) ** 2)
-        ss_tot_i = np.sum((y_i - np.mean(y_i)) ** 2)
-        r2_i = float(max(0.0, 1.0 - (ss_res_i / ss_tot_i)) if ss_tot_i > 0 else 0.0)
+        r2_i = self._safe_r2(y_i, y_pred_i)
         dict_linear["[I] X: ln(t-t0)"], dict_linear["[I] Y: ln(1-(1-α)^1/3)"] = x_i, y_i
 
-        a_d_start = min(a_peak + 0.15, alpha_max * 0.65)
-        a_d_end = alpha_max * 0.90
-        if a_d_end <= a_d_start:
-            a_d_start = alpha_max * 0.55
-            a_d_end = alpha_max * 0.92
-        m_d = (alpha >= a_d_start) & (alpha <= a_d_end)
-        if np.sum(m_d) < min_stage_points:
-            raise KineticsCalculationError("D 阶段有效点不足，无法拟合扩散控制参数 K3。")
-
+        a_d_start = min(max(a_peak + 0.15, alpha_max * 0.55), alpha_max * 0.80)
+        a_d_end = alpha_max * 0.93
+        m_d = self._stage_mask(
+            alpha=alpha,
+            lower=a_d_start,
+            upper=a_d_end,
+            fallback_lower=max(0.10, alpha_max * 0.50),
+            fallback_upper=alpha_max * 0.94,
+            center=alpha_max * 0.78,
+            min_points=min_stage_points,
+            label="D",
+        )
         x_d = np.log(t_delta[m_d])
         y_d = 2.0 * np.log(1.0 - (1.0 - alpha[m_d]) ** (1.0 / 3.0))
-        int_d = np.mean(y_d - x_d)
+        int_d = float(np.mean(y_d - x_d))
         k3 = float(np.clip(np.exp(int_d), 1e-8, 1.0))
         y_pred_d = x_d + int_d
-        ss_res_d = np.sum((y_d - y_pred_d) ** 2)
-        ss_tot_d = np.sum((y_d - np.mean(y_d)) ** 2)
-        r2_d = float(max(0.0, 1.0 - (ss_res_d / ss_tot_d)) if ss_tot_d > 0 else 0.0)
+        r2_d = self._safe_r2(y_d, y_pred_d)
         dict_linear["[D] X: ln(t-t0)"], dict_linear["[D] Y: 2*ln(1-(1-α)^1/3)"] = x_d, y_d
 
         a1, a2 = self._find_boundaries(k1, n, k2, k3, a_peak)
