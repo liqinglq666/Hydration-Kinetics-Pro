@@ -1,7 +1,7 @@
 from PySide6.QtCore import QThread, Signal
 
 from core.data_parser import CalorimetryParser
-from core.kinetics_solver import KDSolver
+from core.kinetics_solver_safe import KDSolver
 from utils.logger import logger
 
 
@@ -53,6 +53,6 @@ class KineticsWorker(QThread):
 
             self.analysis_finished.emit((params, data))
 
-        except Exception as e:
-            logger.error(f"Worker 线程执行管线崩溃: {str(e)}")
-            self.error.emit(str(e))
+        except Exception as exc:
+            logger.error("Worker 线程执行管线崩溃: %s", exc)
+            self.error.emit(str(exc))
