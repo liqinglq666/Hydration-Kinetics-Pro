@@ -22,6 +22,9 @@ class Canvas:
     def plot_hydration_data(self, *args, **kwargs):
         self.calls.append((args, kwargs))
 
+    def clear_data(self):
+        self.calls.append(("cleared", {}))
+
 
 def make_data(end):
     return SimpleNamespace(
@@ -134,3 +137,24 @@ def test_error_before_new_parse_retains_previous_result(monkeypatch):
     assert window.cached_params is not None
     assert window.control_panel.btn_export_excel.enabled is True
     assert not window.canvas.calls
+
+
+def test_loading_another_file_drops_old_results(monkeypatch):
+    window, _, _ = make_window(monkeypatch)
+    window.cached_hydration_data = make_data(10)
+    window.cached_params = object()
+    window._pending_hydration_data = make_data(20)
+    window.current_data_path = None
+    monkeypatch.setattr(
+        main_window.QFileDialog, "getOpenFileName", lambda *args, **kwargs: ("/tmp/new.csv", "")
+    )
+
+    window._handle_load()
+
+    assert window.current_data_path.name == "new.csv"
+    assert window.cached_hydration_data is None
+    assert window.cached_params is None
+    assert window._pending_hydration_data is None
+    assert window.canvas.calls[-1][0] == "cleared"
+    assert window.control_panel.btn_export_excel.enabled is False
+    assert window.control_panel.btn_export_images.enabled is False
