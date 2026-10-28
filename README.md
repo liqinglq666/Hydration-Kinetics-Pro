@@ -7,7 +7,6 @@
     <a href="https://scipy.org/"><img src="https://img.shields.io/badge/Math-SciPy%201.11+-lightgrey.svg?logo=scipy&logoColor=white" alt="SciPy"></a>
     <a href="https://pandas.pydata.org/"><img src="https://img.shields.io/badge/Data-Pandas%202.0+-150458.svg?logo=pandas&logoColor=white" alt="Pandas"></a>
     <a href="https://www.qt.io/"><img src="https://img.shields.io/badge/GUI-PySide6-41CD52.svg" alt="PySide6"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-All%20Rights%20Reserved-red.svg" alt="License"></a>
   </p>
 </p>
 
@@ -531,14 +530,5 @@ Hydration-Kinetics-Pro
 │   └── sample_96h_calorimetry_normalized.csv
 ├── main.py
 ├── requirements.txt
-├── README.md
-└── LICENSE
+└── README.md
 ```
-
----
-
-## 19. License
-
-本项目当前采用 **All Rights Reserved**。
-
-公开可见不代表开放授权。未经作者书面许可，不得复制、修改、再分发、商用或制作衍生软件包。
