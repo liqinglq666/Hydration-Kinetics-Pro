@@ -171,6 +171,8 @@ class MainWindow(QMainWindow):
             self.cached_hydration_data = None
             self.cached_params = None
             self._pending_hydration_data = None
+            self.results_panel.clear_results()
+            self.canvas.clear_data()
             self.control_panel.update_status(f"文件就绪：{self.current_data_path.name}")
             self.control_panel.btn_calc.setEnabled(True)
             self.control_panel.btn_extract.setEnabled(False)
@@ -219,7 +221,8 @@ class MainWindow(QMainWindow):
     def _on_data_loaded(self, data) -> None:
         # Keep the last completed result intact until the new calculation succeeds.
         self._pending_hydration_data = data
-        self.control_panel.btn_extract.setEnabled(True)
+        has_previous_result = self.cached_params is not None and self.cached_hydration_data is not None
+        self.control_panel.btn_extract.setEnabled(not has_previous_result)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g)
 
         parser_warnings = getattr(data, "parser_warnings", [])
@@ -235,6 +238,7 @@ class MainWindow(QMainWindow):
         self.cached_params = params
         self.cached_hydration_data = data
         self._pending_hydration_data = None
+        self.results_panel.clear_extracted_heat()
         self.results_panel.display_results(params)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g, params=params)
 
