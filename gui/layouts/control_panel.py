@@ -65,7 +65,7 @@ class ControlPanel(QWidget):
         self.combo_input_mode = QComboBox()
         self.combo_input_mode.addItem("总热流 mW / 总热量 J，需要按质量归一化", "total")
         self.combo_input_mode.addItem("已归一化 mW/g / J/g，不再除以质量", "normalized")
-        self.combo_input_mode.setToolTip("程序会尊重这里的选择继续计算；若表头单位看起来不一致，只弹出提醒，不再拦截。")
+        self.combo_input_mode.setToolTip("当表头单位与当前选择冲突时，解析将停止并提示更正，避免重复归一化。")
 
         data_card = QGroupBox("① 数据与单位")
         data_layout = QVBoxLayout(data_card)
