@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from gui.main_window_safe import MainWindow
+from gui.main_window import MainWindow
 from utils.logger import logger
 
 
