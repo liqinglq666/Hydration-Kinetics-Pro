@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "数据单位提醒",
-                "\n\n".join(parser_warnings) + "\n\n本次不会拦截计算，程序将继续按照 GUI 当前选择的单位模式处理数据。",
+                "\n\n".join(parser_warnings) + "\n\n请核对数据与设置，确认后再使用结果。",
             )
 
     def _on_finished(self, res) -> None:
