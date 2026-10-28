@@ -61,6 +61,13 @@ class ScientificCanvas(QWidget):
         self.plot_mode = mode
         self._render()
 
+    def clear_data(self) -> None:
+        self._last_time_h = None
+        self._last_heat_flow = None
+        self._last_cumulative_heat = None
+        self._last_params = None
+        self._render()
+
     def plot_hydration_data(
         self,
         time_h: np.ndarray,

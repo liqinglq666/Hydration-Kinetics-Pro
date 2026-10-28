@@ -141,7 +141,7 @@ time_h,heat_flow_mw,cumulative_heat_j
 
 当前支持 `.csv` 与 `.xlsx`。旧式 `.xls` 暂不支持，建议先另存为 `.xlsx`。
 
-软件会尝试根据表头识别单位模式。若表头和 GUI 选择不一致，程序只弹出提醒，不强制中断。最终计算以 GUI 中用户选择的单位模式为准，并将提醒写入 `QC_Parser_Warnings`，方便后期复查。
+软件会尝试根据表头识别单位模式。若表头单位与 GUI 选择冲突，程序会提示更正并停止计算，避免重复归一化。表头无法明确识别单位时，按 GUI 中选择的模式处理。
 
 ---
 
@@ -388,7 +388,7 @@ K-D 参数是否来自真实线性区
 | `QC_Traceability` | 单位模式、t0 来源、Q(t0)、Q∞、Qmax 来源、fallback 状态 | 追溯关键计算锚点 |
 | `QC_R2_Review` | Knudsen、NG、I、D 的 R² 与质量判读 | 判断拟合结果是否适合进入论文讨论 |
 | `QC_Warnings` | solver 中记录的 warning | 防止 fallback 或异常数据被隐藏 |
-| `QC_Parser_Warnings` | 表头单位和 GUI 选择不一致等提醒 | 记录数据预处理风险 |
+| `QC_Parser_Warnings` | 非阻断的解析提醒，如负时间点 | 记录数据预处理风险 |
 | `Tab5_Knudsen` | Qmax、t50、Knudsen 方程和 Qmax 来源 | 对应极限放热量估计 |
 | `Tab6_KD_Eqs` | NG、I、D 三阶段拟合方程与 R² | 对应积分域验证 |
 | `Tab7_KD_Params` | n、K1、K2、K3、alpha_1、alpha_2 | 对应论文主参数表 |
@@ -478,7 +478,7 @@ examples/sample_96h_calorimetry_normalized.csv
 已归一化 mW/g / J/g，不再除以质量
 ```
 
-如果表头和 GUI 单位选择不一致，软件只会提醒，不会拦截。最终计算以 GUI 选择为准，并在 Excel 中记录 parser warning。
+如果表头明确显示的单位与 GUI 选择冲突，解析会停止并提示更正；无法自动判断单位时，按 GUI 设置处理。
 
 ---
 
@@ -489,7 +489,7 @@ examples/sample_96h_calorimetry_normalized.csv
 1. 数据不足时不返回默认 K-D 参数；
 2. Knudsen 外推失败时明确标记 fallback；
 3. 手动 t0 和手动 Q∞ 会写入 QC 表；
-4. 单位模式不一致只提醒，但会记录 warning；
+4. 表头单位与 GUI 模式冲突时停止计算，避免错误归一化；
 5. R² 进入 Excel，但不把它当作唯一判断标准；
 6. OriginLab 源数据单独导出，避免论文图谱不可复现。
 

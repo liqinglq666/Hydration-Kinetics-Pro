@@ -182,6 +182,21 @@ class ResultsPanel(QWidget):
         btn.style().unpolish(btn)
         btn.style().polish(btn)
 
+    def clear_extracted_heat(self) -> None:
+        self.table_heat.setRowCount(0)
+        self._set_fixed_table_height(self.table_heat, visible_rows=3)
+
+    def clear_results(self) -> None:
+        for row in range(self.table.rowCount()):
+            for col in (1, 3):
+                self._set_table_item(self.table, row, col, "--")
+        for row in range(self.table_periods.rowCount()):
+            for col in range(self.table_periods.columnCount()):
+                self._set_table_item(self.table_periods, row, col, "--")
+        self.table_peaks.setRowCount(0)
+        self._set_fixed_table_height(self.table_peaks, visible_rows=2)
+        self.clear_extracted_heat()
+
     def display_results(self, params: KineticsParameters) -> None:
         values = [
             params.t0_h,
@@ -209,7 +224,7 @@ class ResultsPanel(QWidget):
             self._set_table_item(self.table, row, col, text)
 
         periods_data = [
-            [0.0, params.t0_h, params.induction_duration_h],
+            [params.t0_h - params.induction_duration_h, params.t0_h, params.induction_duration_h],
             [params.t0_h, params.t_peak_h, params.accel_duration_h],
             [params.t_peak_h, params.t_end_h, params.decel_duration_h],
         ]

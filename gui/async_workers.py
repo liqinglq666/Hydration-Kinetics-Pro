@@ -1,7 +1,7 @@
 from PySide6.QtCore import QThread, Signal
 
 from core.data_parser import CalorimetryParser
-from core.kinetics_solver_safe import KDSolver
+from core.kinetics_solver import KDSolver
 from utils.logger import logger
 
 

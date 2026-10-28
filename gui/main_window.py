@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
         self.current_data_path = None
         self.cached_hydration_data = None
         self.cached_params = None
+        self._pending_hydration_data = None
         self.plot_buttons = {}
         self.plot_captions = {
             "raw": "热流与累计热量，优先用于检查原始曲线质量。",
@@ -169,6 +170,9 @@ class MainWindow(QMainWindow):
             self.current_data_path = Path(path)
             self.cached_hydration_data = None
             self.cached_params = None
+            self._pending_hydration_data = None
+            self.results_panel.clear_results()
+            self.canvas.clear_data()
             self.control_panel.update_status(f"文件就绪：{self.current_data_path.name}")
             self.control_panel.btn_calc.setEnabled(True)
             self.control_panel.btn_extract.setEnabled(False)
@@ -190,6 +194,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "缺少数据文件", "请先导入量热数据文件。")
             return
 
+        self._pending_hydration_data = None
         self.control_panel.btn_calc.setEnabled(False)
         self.control_panel.btn_load.setEnabled(False)
         self.control_panel.btn_extract.setEnabled(False)
@@ -214,8 +219,10 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def _on_data_loaded(self, data) -> None:
-        self.cached_hydration_data = data
-        self.control_panel.btn_extract.setEnabled(True)
+        # Keep the last completed result intact until the new calculation succeeds.
+        self._pending_hydration_data = data
+        has_previous_result = self.cached_params is not None and self.cached_hydration_data is not None
+        self.control_panel.btn_extract.setEnabled(not has_previous_result)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g)
 
         parser_warnings = getattr(data, "parser_warnings", [])
@@ -223,12 +230,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "数据单位提醒",
-                "\n\n".join(parser_warnings) + "\n\n本次不会拦截计算，程序将继续按照 GUI 当前选择的单位模式处理数据。",
+                "\n\n".join(parser_warnings) + "\n\n请核对数据与设置，确认后再使用结果。",
             )
 
     def _on_finished(self, res) -> None:
         params, data = res
         self.cached_params = params
+        self.cached_hydration_data = data
+        self._pending_hydration_data = None
+        self.results_panel.clear_extracted_heat()
         self.results_panel.display_results(params)
         self.canvas.plot_hydration_data(data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g, params=params)
 
@@ -240,14 +250,30 @@ class MainWindow(QMainWindow):
         self.control_panel.update_status("解析完成，可以提取数据或导出图表。")
 
     def _on_error(self, err_msg: str) -> None:
+        pending = getattr(self, "_pending_hydration_data", None)
+        has_result = self.cached_params is not None and self.cached_hydration_data is not None
+        if has_result and pending is not None:
+            # Restore the matching data/parameters and plot from the last good run.
+            data = self.cached_hydration_data
+            self.canvas.plot_hydration_data(
+                data.time_h, data.heat_flow_mw_g, data.cumulative_heat_j_g, params=self.cached_params
+            )
+        elif not has_result and pending is not None:
+            # A parsed file can still be used for heat extraction if fitting failed.
+            self.cached_hydration_data = pending
+        self._pending_hydration_data = None
+
         self.control_panel.update_status("核心引擎执行异常", is_error=True)
         self.control_panel.btn_calc.setEnabled(True)
         self.control_panel.btn_load.setEnabled(True)
         self.control_panel.btn_extract.setEnabled(self.cached_hydration_data is not None)
+        self.control_panel.btn_export_excel.setEnabled(has_result)
+        self.control_panel.btn_export_images.setEnabled(has_result)
         QMessageBox.critical(self, "计算失败", err_msg)
 
     def _handle_heat_extraction(self, times_str: str) -> None:
-        if self.cached_hydration_data is None:
+        extraction_data = self._pending_hydration_data or self.cached_hydration_data
+        if extraction_data is None:
             QMessageBox.warning(self, "提取失败", "数据尚未完成解析，请先执行分析。")
             return
         try:
@@ -257,8 +283,8 @@ class MainWindow(QMainWindow):
                 raise ValueError("empty time list")
             heats = np.interp(
                 target_times,
-                self.cached_hydration_data.time_h,
-                self.cached_hydration_data.cumulative_heat_j_g,
+                extraction_data.time_h,
+                extraction_data.cumulative_heat_j_g,
                 left=np.nan,
                 right=np.nan,
             )
