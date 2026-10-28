@@ -43,6 +43,8 @@ def make_window(monkeypatch):
     window.results_panel = SimpleNamespace(
         display_results=lambda params: displayed.append(params),
         display_extracted_heat=lambda *args: extracted.append(args),
+        clear_extracted_heat=lambda: extracted.clear(),
+        clear_results=lambda: None,
     )
     window.control_panel = SimpleNamespace(
         update_status=lambda *args, **kwargs: None,
@@ -68,6 +70,7 @@ def test_error_keeps_matching_last_valid_result(monkeypatch):
     assert window.cached_hydration_data is old
     assert window.cached_params is params
     assert window._pending_hydration_data is new
+    assert window.control_panel.btn_extract.enabled is False
 
     window._on_error("calculation failed")
     assert window._pending_hydration_data is None
