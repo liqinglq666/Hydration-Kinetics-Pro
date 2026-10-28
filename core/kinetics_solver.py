@@ -123,7 +123,7 @@ class KDSolver:
             delta_time_h=d_time,
             t_peak_h=t_peak,
             t_end_h=t_end,
-            induction_duration_h=t0,
+            induction_duration_h=max(0.0, t0 - float(self.data.time_h[0])),
             accel_duration_h=max(0.0, t_peak - t0),
             decel_duration_h=max(0.0, t_end - t_peak),
             peaks=all_peaks,
@@ -162,8 +162,18 @@ class KDSolver:
             raise KineticsCalculationError("热流或累计热量列包含 NaN 或无穷值。")
         if np.nanmax(self.data.cumulative_heat_j_g) <= 0:
             raise KineticsCalculationError("累计热量必须包含正值。")
-        if np.any(np.diff(self.data.cumulative_heat_j_g) < -1e-6):
-            self._add_warning("累计热量存在局部下降，可能来自仪器噪声、基线校正或单位列选择错误；请复查原始数据。")
+        cumulative = self.data.cumulative_heat_j_g
+        drops = np.diff(cumulative)
+        if np.any(drops < 0):
+            span = max(float(np.ptp(cumulative)), 1.0)
+            tolerance = max(1e-3, span * 1e-3)
+            worst_drop = float(np.min(drops))
+            if worst_drop < -tolerance:
+                raise KineticsCalculationError(
+                    f"累计热量存在明显回落（单步最小 {worst_drop:.4g} J/g），请先做基线复核。"
+                )
+            self.data.cumulative_heat_j_g = np.maximum.accumulate(cumulative)
+            self._add_warning("累计热量有轻微回落，已按单调包络处理。")
 
     def _extract_all_peaks(self) -> List[Tuple[float, float]]:
         heat_flow = self.data.heat_flow_mw_g
@@ -312,6 +322,9 @@ class KDSolver:
             target = qmax_value / 2.0
             if target > np.nanmax(q_calc):
                 self._add_warning("当前测试时长内累计放热尚未达到 Qmax/2，t50 使用最接近的末端数据点估计；请谨慎解释 t50。")
+            if target <= float(np.nanmax(q_calc)):
+                unique_heats, indices = np.unique(q_calc, return_index=True)
+                return float(np.interp(target, unique_heats, t_calc[indices]) - t0)
             return float(t_calc[np.argmin(np.abs(q_calc - target))] - t0)
 
         qmax_fallback_used = False
@@ -530,6 +543,11 @@ class KDSolver:
         y_pred_d = x_d + int_d
         r2_d = self._safe_r2(y_d, y_pred_d)
         dict_linear["[D] X: ln(t-t0)"], dict_linear["[D] Y: 2*ln(1-(1-α)^1/3)"] = x_d, y_d
+
+        # Score the final constrained parameters rather than the unconstrained regressions.
+        r2_ng = self._safe_r2(y_ng, n * x_ng + n * np.log(k1))
+        r2_i = self._safe_r2(y_i, x_i + np.log(k2))
+        r2_d = self._safe_r2(y_d, x_d + np.log(k3))
 
         a1, a2 = self._find_boundaries(k1, n, k2, k3, a_peak)
         return k1, n, k2, k3, a1, a2, r2_ng, r2_i, r2_d, dict_linear
